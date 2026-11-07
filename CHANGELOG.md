@@ -1,11 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
+
+Quak now speaks your language. Tested in these languages on the Linux desktop app and one Android phone, but not on Windows.
 
 - The app and its main docs are now in Português (Brasil), Español, Français, Deutsch, Русский, 简体中文 and 日本語. The app follows your
   system's language, or you can choose one in More. These are machine translations, and
   [corrections are welcome](https://github.com/ADCDS/quak/blob/main/CONTRIBUTING.md#translations)
 - Fixed: the Play button in the desktop app crashed after downloading a clip
+
+The APK updates an installed 0.1.0 in place, keeping your pairing and downloads.
 
 ## 0.1.0
 
