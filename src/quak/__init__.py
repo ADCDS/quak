@@ -4,4 +4,4 @@ One backend (``quak.service.CameraService``) is shared by the ``quak`` CLI, the 
 and the end-to-end test runner.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

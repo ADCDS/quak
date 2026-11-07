@@ -1,6 +1,6 @@
 name: quak_native
 description: Quak Bluetooth LE and Wi-Fi bridge (universal_ble, wifi_iot) for Flet
-version: 0.1.0
+version: 0.2.0
 publish_to: none
 
 environment:

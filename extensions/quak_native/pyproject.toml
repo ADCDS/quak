@@ -1,6 +1,6 @@
 [project]
 name = "quak-native"
-version = "0.1.0"
+version = "0.2.0"
 description = "Quak's Bluetooth LE and Wi-Fi bridge for Flet apps on Android (universal_ble, wifi_iot)"
 readme = "README.md"
 requires-python = ">=3.10"

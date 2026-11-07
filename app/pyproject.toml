@@ -2,7 +2,7 @@
 # quak package into app/src before running `flet build`, so the app runs the same backend as the CLI.
 [project]
 name = "quak"
-version = "0.1.0"
+version = "0.2.0"
 description = "Open-source remote for GoPro HERO11 cameras"
 requires-python = ">=3.12"
 dependencies = ["flet==1.1.0", "flet-video==1.1.0", "quak-native"]

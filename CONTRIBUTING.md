@@ -52,7 +52,7 @@ English on purpose, so scripts keep working and bug reports stay readable.
 
 ## Making a release
 
-1. Set the new version in `src/quak/__init__.py` and `app/pyproject.toml`, and add a section for it to `CHANGELOG.md`. The
+1. Set the new version in `src/quak/__init__.py`, `app/pyproject.toml` and `extensions/quak_native`, and add a section for it to `CHANGELOG.md`. The
    section becomes the release notes, so use full links in it.
 2. Run `gh workflow run build.yml` and try the packages it builds.
 3. Tag the commit: `git tag v1.2.3 && git push origin v1.2.3`.
