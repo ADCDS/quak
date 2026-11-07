@@ -26,6 +26,7 @@ One Python backend does the work. The command line and the app are thin layers o
 | `src/quak/flows.py` | Operations with several steps and their cleanup |
 | `src/quak/guard.py` | Saves settings and restores them around tests |
 | `src/quak/service.py` | `CameraService`, the one API that the app uses, and the state it watches |
+| `src/quak/i18n.py`, `src/quak/locale/` | The app's translations. Only the app sets a language, so the command line stays in English |
 | `src/quak/cli/` | The `quak` command |
 | `src/quak/gui/` | The Flet app. `screens/` has one file per screen, and `kit.py` holds shared controls |
 | `src/quak/e2e/` | The end-to-end suites, run against the simulator or a real camera |

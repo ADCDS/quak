@@ -53,7 +53,8 @@ Media get a layout of their own.
 ## Fonts
 
 The fonts are bundled (`src/quak/gui/assets/fonts`, SIL OFL), so every platform renders Inter, Space Grotesk and
-JetBrains Mono as designed. A button's text style has to name its font, because Flutter replaces a button's whole
+JetBrains Mono as designed. Space Grotesk only has Latin letters, so Russian titles use Inter, and Chinese and Japanese use the system's
+fonts, because bundling those would add many megabytes. A button's text style has to name its font, because Flutter replaces a button's whole
 style rather than merging it with the theme.
 
 ## Checking a change

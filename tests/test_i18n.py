@@ -289,10 +289,67 @@ class Language(unittest.TestCase):
         for tags, code in cases.items():
             self.assertEqual(i18n.match_language(tags), code, tags)
 
+    def test_decimals(self):
+        self.assertEqual(i18n.decimal("183.2"), "183.2")
+        i18n.set_language("de")
+        self.assertEqual(i18n.decimal("183.2"), "183,2")
+        i18n.set_language("ja")
+        self.assertEqual(i18n.decimal("183.2"), "183.2")
+
     def test_dates(self):
         day = dt.date(2026, 11, 4)
         self.assertEqual(i18n.weekday_day_month(day), "Wed 04 Nov")
         self.assertEqual(i18n.day_month(day), "04 Nov")
+
+
+class TranslatedDocs(unittest.TestCase):
+    PAGES = ("README.md", "install.md", "safety.md", "troubleshooting.md")
+
+    def english(self, page: str) -> str:
+        return (ROOT / ("README.md" if page == "README.md" else f"docs/{page}")).read_text(encoding="utf-8")
+
+    def translated(self, code: str, page: str) -> Path:
+        return ROOT / "docs" / "i18n" / code / page
+
+    def test_every_language_has_every_page(self):
+        for code in sync.languages():
+            for page in self.PAGES:
+                self.assertTrue(self.translated(code, page).exists(), f"{code}/{page}")
+
+    def test_they_keep_the_structure_of_the_english(self):
+        """A rough check that a translation hasn't fallen behind: the same headings, code and pictures."""
+
+        def shape(text: str) -> tuple:
+            headings = [len(h) for h in re.findall(r"^(#+) ", text, re.M)]
+            code = re.findall(r"^```.*?^```", text, re.M | re.S)
+            pictures = re.findall(r'<img src="([^"]+)"', text)
+            return headings, code, pictures
+
+        for code in sync.languages():
+            for page in self.PAGES:
+                got = shape(self.translated(code, page).read_text(encoding="utf-8"))
+                self.assertEqual(got, shape(self.english(page)), f"{code}/{page}")
+
+    def test_they_say_theyre_translations(self):
+        for code in sync.languages():
+            for page in self.PAGES:
+                text = self.translated(code, page).read_text(encoding="utf-8")
+                self.assertIn(
+                    f"blob/main/{'README.md' if page == 'README.md' else 'docs/' + page}", text[:800], f"{code}/{page}"
+                )
+
+    def test_their_links_lead_somewhere(self):
+        for code in sync.languages():
+            for page in self.PAGES:
+                path = self.translated(code, page)
+                for target in re.findall(r"\]\((?!https?:|#)([^)#]+)", path.read_text(encoding="utf-8")):
+                    self.assertTrue((path.parent / target).exists(), f"{code}/{page}: {target}")
+
+    def test_the_english_readme_links_to_every_language(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for code in sync.languages():
+            self.assertIn(f"docs/i18n/{code}/README.md", readme)
+            self.assertIn(i18n.LANGUAGES[code], readme)
 
 
 class CommandLine(unittest.TestCase):

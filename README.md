@@ -4,6 +4,8 @@
 
 <p align="center">An open-source remote for the GoPro HERO11 Black: a command-line tool and an app for desktop and Android.</p>
 
+<p align="center"><b>English</b> · <a href="https://github.com/ADCDS/quak/blob/main/docs/i18n/pt-BR/README.md">Português (Brasil)</a> · <a href="https://github.com/ADCDS/quak/blob/main/docs/i18n/es/README.md">Español</a> · <a href="https://github.com/ADCDS/quak/blob/main/docs/i18n/fr/README.md">Français</a> · <a href="https://github.com/ADCDS/quak/blob/main/docs/i18n/de/README.md">Deutsch</a> · <a href="https://github.com/ADCDS/quak/blob/main/docs/i18n/ru/README.md">Русский</a> · <a href="https://github.com/ADCDS/quak/blob/main/docs/i18n/zh-CN/README.md">简体中文</a> · <a href="https://github.com/ADCDS/quak/blob/main/docs/i18n/ja/README.md">日本語</a></p>
+
 <p align="center"><img src="https://raw.githubusercontent.com/ADCDS/quak/main/docs/images/hero.png" alt="Quak on desktop and phone, showing a live preview from a simulated camera"></p>
 
 Quak talks to the camera over Bluetooth and the camera's own Wi-Fi, using GoPro's public
@@ -37,6 +39,8 @@ Or download a ready-made app for Linux, Windows or Android from [Releases](https
   even if you switch it off after arming.
 - **Live preview** over the camera's Wi-Fi. The camera can't stream while it records, so preview pauses until you stop.
 - **Media:** browse the card, download clips, and delete them, with a confirmation that names the file.
+- **In your language:** the app follows your system's language, or you can choose in **More**: English, Português (Brasil),
+  Español, Français, Deutsch, Русский, 简体中文 or 日本語. The command line stays in English.
 - **Livestream** to an RTMP server such as YouTube or Twitch. This is **experimental**: see [known issues](https://github.com/ADCDS/quak/blob/main/docs/troubleshooting.md#known-issues).
 
 <p align="center">

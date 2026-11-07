@@ -28,7 +28,8 @@ the camera's power button. GUI step G07 needs G04's clip, and G11 needs G03's li
   saved networks are refused. The camera has no API to forget a network, so it keeps that entry until Reset Connections.
 - **Never used:** formatting a card, deleting everything, or a factory reset.
 
-The real-camera GUI suite sets `QUAK_DEV=1`, which shows the self-test and Live's test mode.
+The real-camera GUI suite sets `QUAK_DEV=1`, which shows the self-test and Live's test mode. The GUI suite finds things by their
+English labels, so it also sets `QUAK_LANG=en`.
 
 ## Linux Wi-Fi setup for real-camera runs
 

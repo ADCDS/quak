@@ -7,6 +7,7 @@ import time
 
 import flet as ft
 
+from quak import i18n
 from quak.core import registry as R
 from quak.gui import kit
 from quak.gui import theme as th
@@ -203,5 +204,5 @@ def _elapsed(app) -> str:
 def _size(n: int) -> str:
     """4.2 MB, 39 MB, 183.2 GB"""
     if n >= 1e9:
-        return tr("{size} GB", size=f"{n / 1e9:.1f}")
-    return tr("{size} MB", size=f"{n / 1e6:.1f}" if n < 10e6 else f"{n / 1e6:.0f}")
+        return tr("{size} GB", size=i18n.decimal(f"{n / 1e9:.1f}"))
+    return tr("{size} MB", size=i18n.decimal(f"{n / 1e6:.1f}" if n < 10e6 else f"{n / 1e6:.0f}"))

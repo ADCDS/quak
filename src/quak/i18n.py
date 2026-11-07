@@ -27,6 +27,7 @@ LANGUAGES = {  # each in its own language, because that's how people look for th
     "zh-CN": "简体中文",
     "ja": "日本語",
 }
+DECIMAL_COMMA = ("pt-BR", "es", "fr", "de", "ru")
 LOCALE_DIR = Path(__file__).parent / "locale"
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -93,6 +94,11 @@ def trn(one: str, other: str, n: int, **values) -> str:
     if isinstance(forms, dict):
         text = forms.get(plural_form(_language, n)) or forms.get("other") or source
     return _fill(text, source, {"n": n, **values})
+
+
+def decimal(number: str) -> str:
+    """183.2 is written 183,2 in most of these languages."""
+    return number.replace(".", ",") if _language in DECIMAL_COMMA else number
 
 
 def weekday(day: dt.date) -> str:

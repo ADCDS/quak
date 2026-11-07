@@ -36,6 +36,20 @@ screenshots with `tools/make_images.py`, which uses the simulator. `tests/test_s
 The test suites should only ever delete clips they recorded, and `tests/test_safety.py` keeps dangerous camera commands, such as
 formatting a card, out of the code.
 
+## Translations
+
+The app's text lives in `src/quak/locale/`, one file per language, and the translated pages in `docs/i18n/`. They were
+machine-translated and haven't been reviewed by native speakers, so corrections are very welcome: just edit the file. The camera's
+own menu names are the most useful thing to check, because they have to match what the camera shows in that language.
+
+In the code, text goes through `tr("Delete {name}?", name=name)`, or `trn("{n} clip", "{n} clips", count)` for counts, always as
+one whole sentence, because word order changes between languages. Then run `python tools/i18n_sync.py` to add it to the catalogs. A
+new message shows in English until it's translated, but the tests want every language complete before merging.
+
+To add a language, add it to `LANGUAGES` in `src/quak/i18n.py`, add its plural rule there if it's unusual, run the sync tool and fill in
+the new file. To see the app in a language without changing your settings, set `QUAK_LANG=de`. The command line and logs stay in
+English on purpose, so scripts keep working and bug reports stay readable.
+
 ## Making a release
 
 1. Set the new version in `src/quak/__init__.py` and `app/pyproject.toml`, and add a section for it to `CHANGELOG.md`. The
