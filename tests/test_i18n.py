@@ -175,7 +175,7 @@ class Catalogs(unittest.TestCase):
             for key, value in _catalog(code).items():
                 names = {name: "x" for name in PLACEHOLDER.findall(key) if name}
                 for form in _forms(value):
-                    form.format(n=2, **names)
+                    form.format(**{**names, "n": 2})
 
     def test_names_arent_translated(self):
         """Quak, GoPro and the camera's model read the same everywhere, including in Japanese or Russian text."""

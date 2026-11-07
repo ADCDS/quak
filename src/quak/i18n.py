@@ -105,14 +105,18 @@ def weekday(day: dt.date) -> str:
     return term(WEEKDAYS[day.weekday()])
 
 
+def _day_number(day: dt.date) -> str:
+    return f"{day.day:02d}" if _language == DEFAULT else str(day.day)  # the zero only suits the English design
+
+
 def day_month(day: dt.date) -> str:
     """04 Nov, in the order and with the names the language uses."""
-    return tr("{day} {month}", day=f"{day.day:02d}", month=term(MONTHS[day.month - 1]))
+    return tr("{day} {month}", day=_day_number(day), month=term(MONTHS[day.month - 1]))
 
 
 def weekday_day_month(day: dt.date) -> str:
     """Wed 04 Nov, likewise."""
-    return tr("{weekday} {day} {month}", weekday=weekday(day), day=f"{day.day:02d}", month=term(MONTHS[day.month - 1]))
+    return tr("{weekday} {day} {month}", weekday=weekday(day), day=_day_number(day), month=term(MONTHS[day.month - 1]))
 
 
 def match_language(tags: Iterable[str]) -> str:
