@@ -12,11 +12,12 @@ from pathlib import Path
 
 import flet as ft
 
-from quak import config
+from quak import config, i18n
 from quak.core import registry as R
 from quak.core.registry import Status
 from quak.gui import kit
 from quak.gui import theme as th
+from quak.i18n import tr
 from quak.gui.screens.cameras import _confirm_sleep
 from quak.gui.screens.common import _camera_name, _fw, pick
 
@@ -218,6 +219,13 @@ def _demo_switch(app) -> ft.Control:
         ft.Column(
             [
                 appearance,
+                kit.setting_row(
+                    tr("Language"),
+                    tr("System") if app.language_pref == "system" else i18n.LANGUAGES.get(app.language_pref, ""),
+                    t,
+                    on_click=lambda e: _choose_language(app),
+                    key="language",
+                ),
                 kit.check_row(
                     "Demo mode",
                     app.sim,
@@ -231,6 +239,30 @@ def _demo_switch(app) -> ft.Control:
         ),
         t,
         padding=0,
+    )
+
+
+def _choose_language(app) -> None:
+    def pick(code: str):
+        def chosen(e):
+            app.close_dialog()
+            app.set_language(code)
+
+        return chosen
+
+    choices = [("system", tr("System")), *i18n.LANGUAGES.items()]
+    app.dialog(
+        tr("Language"),
+        ft.Column(
+            [
+                kit.check_row(name, code == app.language_pref, pick(code), app.t, key=f"language-{code}")
+                for code, name in choices
+            ],
+            spacing=0,
+            tight=True,
+            scroll=ft.ScrollMode.AUTO,
+        ),
+        [ft.TextButton(tr("Cancel"), on_click=lambda e: app.close_dialog())],
     )
 
 

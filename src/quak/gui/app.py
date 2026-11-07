@@ -17,7 +17,7 @@ from pathlib import Path
 
 import flet as ft
 
-from quak import config
+from quak import config, i18n
 from quak.connect import Target
 from quak.core.errors import AdapterInUse, QuakError
 from quak.core.registry import Status
@@ -123,6 +123,40 @@ class App:
         self.page.theme_mode = ft.ThemeMode.LIGHT if light else ft.ThemeMode.DARK
         self.page.theme, self.page.dark_theme = _material_theme(th.LIGHT), _material_theme(th.DARK)
         self.page.bgcolor = self.t.ground
+
+    @property
+    def language_pref(self) -> str:
+        return config.get_pref("language", "system")
+
+    def apply_language(self, system_tags: list[str] | None = None) -> None:
+        """QUAK_LANG (for the test suites) comes first, then the choice in More, then the system's languages."""
+        code = os.environ.get("QUAK_LANG") or self.language_pref
+        if code == "system":
+            code = i18n.match_language(system_tags if system_tags is not None else _system_language_tags())
+        i18n.set_language(code)
+        self.page.locale_configuration = ft.LocaleConfiguration(
+            supported_locales=[_flet_locale(c) for c in i18n.LANGUAGES], current_locale=_flet_locale(i18n.language())
+        )
+
+    def set_language(self, pref: str) -> None:
+        config.set_pref("language", pref)
+        if pref == "system":
+            self.page.run_task(self.follow_system_language)
+        self.apply_language()
+        self.render()
+
+    async def follow_system_language(self) -> None:
+        """Python often can't tell, on a phone especially, but the device can. Only asked when nothing was chosen."""
+        if os.environ.get("QUAK_LANG") or self.language_pref != "system":
+            return
+        try:
+            info = await self.page.get_device_info()
+            tags = [_locale_tag(locale) for locale in getattr(info, "locales", None) or []]
+        except Exception:  # noqa: BLE001 - the system's language is a nicety: what's on screen still works
+            return
+        if tags and i18n.match_language(tags) != i18n.language():
+            self.apply_language(tags)
+            self.render()
 
     def set_theme(self, pref: str) -> None:
         config.set_pref("theme", pref)
@@ -514,6 +548,21 @@ class App:
         return d
 
 
+def _system_language_tags() -> list[str]:
+    tags = [os.environ.get(name, "") for name in ("LC_ALL", "LC_MESSAGES", "LANG")]
+    tags += os.environ.get("LANGUAGE", "").split(":")
+    return [tag for tag in tags if tag and tag not in ("C", "POSIX")]
+
+
+def _locale_tag(locale) -> str:
+    return "-".join(p for p in (locale.language_code, locale.script_code, locale.country_code) if p)
+
+
+def _flet_locale(code: str) -> ft.Locale:
+    language, _, country = code.partition("-")
+    return ft.Locale(language, country or None)
+
+
 def _material_theme(t: th.Tokens) -> ft.Theme:
     """Material defaults (dialogs, fields, the phone tab bar) in Quak's colours and type."""
     return ft.Theme(
@@ -598,8 +647,14 @@ def main(page: ft.Page, sim: bool | None = None) -> None:
     page.fonts = dict(th.FONTS)
     service = build_service(sim, page)
     app = App(page, service, sim)
+    app.apply_language()
     app.apply_theme()
     page.data = app
+
+    def system_language_changed(e):
+        page.run_task(app.follow_system_language)
+
+    page.on_locale_change = system_language_changed
 
     def brightness_changed(e):
         if app.theme_pref == "system":
@@ -613,6 +668,7 @@ def main(page: ft.Page, sim: bool | None = None) -> None:
     page.views[0].can_pop = False  # otherwise Android's Back leaves the app from any screen
     page.views[0].on_confirm_pop = app.on_android_back
     app.render()
+    page.run_task(app.follow_system_language)
     if not sim:
         recover_network()
     if sim or config.default_address():

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from quak import i18n
+
 
 @dataclass(frozen=True)
 class Tokens:
@@ -102,6 +104,14 @@ LIGHT = Tokens(
 
 # fonts (bundled under quak/gui/assets/fonts, SIL Open Font License)
 BODY_FONT, HEAD_FONT, MONO_FONT = "Inter", "Space Grotesk", "JetBrains Mono"
+# Space Grotesk has Latin letters only. Inter has Cyrillic, and Chinese and Japanese fall back to the system's fonts
+HEAD_FONT_LANGUAGES = ("en", "pt-BR", "es", "fr", "de")
+
+
+def head_font() -> str:
+    return HEAD_FONT if i18n.language() in HEAD_FONT_LANGUAGES else BODY_FONT
+
+
 FONTS = {BODY_FONT: "fonts/Inter.ttf", HEAD_FONT: "fonts/SpaceGrotesk.ttf", MONO_FONT: "fonts/JetBrainsMono.ttf"}
 
 # type scale (px) and radii

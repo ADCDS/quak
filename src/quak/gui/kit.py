@@ -17,10 +17,10 @@ def text(value: str, t: Tokens, size: int = th.BODY, color: str | None = None, w
 
 
 def title(value: str, t: Tokens, size: int = th.DISPLAY, color: str | None = None, **kw) -> ft.Text:
-    """Headings: Space Grotesk, like the design (which tightens the big ones by 0.02 em)."""
+    """Headings: Space Grotesk where it has the letters, like the design (which tightens the big ones by 0.02 em)."""
     if 24 <= size <= 30 and "style" not in kw:
         kw["style"] = ft.TextStyle(letter_spacing=size * -0.02)
-    return ft.Text(value, size=size, weight=ft.FontWeight.W_600, color=color or t.text, font_family=th.HEAD_FONT, **kw)
+    return ft.Text(value, size=size, weight=ft.FontWeight.W_600, color=color or t.text, font_family=th.head_font(), **kw)
 
 
 def page_title(value: str, t: Tokens) -> ft.Control:
