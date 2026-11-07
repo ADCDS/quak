@@ -140,6 +140,7 @@ class App:
         self.page.locale_configuration = ft.LocaleConfiguration(
             supported_locales=[_flet_locale(c) for c in i18n.LANGUAGES], current_locale=_flet_locale(i18n.language())
         )
+        self.apply_theme()  # the fonts depend on the language
 
     def set_language(self, pref: str) -> None:
         config.set_pref("language", pref)
@@ -583,7 +584,7 @@ def _material_theme(t: th.Tokens) -> ft.Theme:
             on_surface=t.text,
             error=t.rec,
         ),
-        font_family=th.BODY_FONT,
+        font_family=th.body_font(),
         navigation_bar_theme=ft.NavigationBarTheme(
             height=76,
             label_text_style={
@@ -657,7 +658,6 @@ def main(page: ft.Page, sim: bool | None = None) -> None:
     service = build_service(sim, page)
     app = App(page, service, sim)
     app.apply_language()
-    app.apply_theme()
     page.data = app
 
     def system_language_changed(e):

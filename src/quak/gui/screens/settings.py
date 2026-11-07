@@ -25,7 +25,13 @@ def settings(app) -> ft.Control:
             tr("Camera settings"),
             back="remote",
             right=kit.text(
-                tr("{name} preset", name=term(_preset_name(app, int(st.s(Status.PRESET, 0))))), t, 13, t.text2
+                tr("{name} preset", name=term(_preset_name(app, int(st.s(Status.PRESET, 0))))),
+                t,
+                13,
+                t.text2,
+                max_lines=1,
+                overflow=ft.TextOverflow.ELLIPSIS,
+                text_align=ft.TextAlign.RIGHT,
             ),
         ),
         ft.Row(

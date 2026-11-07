@@ -435,7 +435,7 @@
  "Surf": "Surfen",
  "Swipe down, then left, and tap {path}.": "Wische nach unten, dann nach links, und tippe auf {path}.",
  "Sync": "Synchronisieren",
- "Sync clock": "Uhr synchronisieren",
+ "Sync clock": "Uhr abgleichen",
  "Sync now": "Synchronisieren",
  "Synced": "Synchron",
  "Syncing the camera clock": "Kamerauhr wird synchronisiert",
@@ -601,7 +601,7 @@
  "{minutes} min": "{minutes} min",
  "{name} can't be changed in the camera's current mode": "{name} lässt sich im aktuellen Modus der Kamera nicht ändern",
  "{name} can't be changed in the camera's current mode (needs Pro controls)": "{name} lässt sich im aktuellen Modus der Kamera nicht ändern (nur mit Profi-Bedienfunktionen)",
- "{name} preset": "Voreinstellung {name}",
+ "{name} preset": "{name}",
  "{name} · firmware {version}": "{name} · Firmware {version}",
  "{n} HiLight": {
   "one": "{n} HiLight",

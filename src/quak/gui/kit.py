@@ -83,7 +83,7 @@ def _button(
         side=ft.BorderSide(1, border) if border else None,
         padding=ft.Padding.symmetric(horizontal=18),
         # a button's text style replaces the theme's, so the family has to be named here
-        text_style=ft.TextStyle(size=text_size, weight=weight, font_family=th.BODY_FONT),
+        text_style=ft.TextStyle(size=text_size, weight=weight, font_family=th.body_font()),
         elevation=0,
         shadow_color=ft.Colors.TRANSPARENT,
     )

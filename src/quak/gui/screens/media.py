@@ -605,7 +605,7 @@ def _button_danger(app, caption: str, on_click) -> ft.Control:
             bgcolor=t.danger_tint,
             color=t.danger_text,
             shape=ft.RoundedRectangleBorder(radius=12),
-            text_style=ft.TextStyle(size=14, weight=ft.FontWeight.W_600, font_family=th.BODY_FONT),
+            text_style=ft.TextStyle(size=14, weight=ft.FontWeight.W_600, font_family=th.body_font()),
             padding=ft.Padding.symmetric(horizontal=16),
         ),
     )

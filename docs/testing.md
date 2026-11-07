@@ -59,6 +59,11 @@ many passed only on a later attempt, with `--rest 20`, running one scenario at a
 camera's Wi-Fi, media list, thumbnails, info, download, opening the share sheet for a download, delete, live preview, changing mode
 during preview, and the Back button. Not tested: scheduled capture, settings, HiLights, livestream, and the self-test.
 
+**Translations.** Every screen was checked by eye on the simulator at phone size in all seven translated languages, and in German and
+Japanese at desktop size. The language picker and following the system's language were tested in the Linux desktop app. They haven't been
+tried on Android or Windows, or reviewed by native speakers. The camera's menu names in Spanish and German come from copies of GoPro's HERO11
+manual. In the other languages they come from GoPro's support pages, so the app shows the English next to them.
+
 **Windows.** Never launched. CI runs the unit tests on Windows, and the `netsh` code is only unit-tested with invented output.
 
 **Packaged builds.** The `build` workflow runs by hand, from the Actions tab or with `gh workflow run build.yml`, and on a version

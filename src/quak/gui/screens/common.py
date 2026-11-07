@@ -86,7 +86,8 @@ def _header(app, title: str, back: str | None = None, right: ft.Control | None =
     if back:
         left.append(kit.icon_button(ft.Icons.CHEVRON_LEFT, tr("Back"), lambda e: app.go(back), t))
     left.append(kit.title(title, t, th.TITLE))
-    return ft.Row([ft.Row(left, spacing=4), right or ft.Container()], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+    side = ft.Container(right, expand=True, alignment=ft.Alignment.CENTER_RIGHT) if right else ft.Container()
+    return ft.Row([ft.Row(left, spacing=4, tight=True), side], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
 
 
 def _value(app, sid: int) -> str:

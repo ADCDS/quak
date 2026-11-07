@@ -590,7 +590,7 @@
  "{done} of {total}": "{done} / {total}",
  "{fps} fps": "{fps} fps",
  "{hours} h": "{hours} 小时",
- "{hours} h {minutes} m": "{hours} 小时 {minutes} 分",
+ "{hours} h {minutes} m": "{hours}小时{minutes}分",
  "{minutes} m {seconds} s": "{minutes} 分 {seconds} 秒",
  "{minutes} min": "{minutes} 分钟",
  "{name} can't be changed in the camera's current mode": "相机当前模式下无法更改 {name}",

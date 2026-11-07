@@ -43,6 +43,10 @@ NOT_TRANSLATED = {
     "Inter",
     "Space Grotesk",
     "JetBrains Mono",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    "Yu Gothic UI",
+    "Noto Sans CJK JP",
     "THIRD_PARTY_NOTICES.md",
     "python -m quak.e2e",
     "Videos",  # the folder in the home directory, whose name the system chooses
@@ -289,6 +293,17 @@ class Language(unittest.TestCase):
         }
         for tags, code in cases.items():
             self.assertEqual(i18n.match_language(tags), code, tags)
+
+    def test_every_language_has_a_font_with_its_letters(self):
+        from quak.gui import theme as th  # needs the GUI extra's flet only through the theme's own imports
+
+        for code, head, body in (("en", th.HEAD_FONT, th.BODY_FONT), ("ru", th.BODY_FONT, th.BODY_FONT)):
+            i18n.set_language(code)
+            self.assertEqual((th.head_font(), th.body_font()), (head, body), code)
+        for code in ("zh-CN", "ja"):
+            i18n.set_language(code)
+            self.assertEqual(th.head_font(), th.SYSTEM_FONTS[code])
+            self.assertEqual(th.body_font(), th.SYSTEM_FONTS[code])
 
     def test_decimals(self):
         self.assertEqual(i18n.decimal("183.2"), "183.2")

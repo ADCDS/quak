@@ -269,7 +269,14 @@ def _choose_language(app) -> None:
         tr("Language"),
         ft.Column(
             [
-                kit.check_row(name, code == app.language_pref, pick(code), app.t, key=f"language-{code}")
+                kit.setting_row(
+                    name,
+                    "✓" if code == app.language_pref else "",
+                    app.t,
+                    on_click=pick(code),
+                    key=f"language-{code}",
+                    chevron=False,
+                )
                 for code, name in choices
             ],
             spacing=0,

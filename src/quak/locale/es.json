@@ -141,7 +141,7 @@
  "Couldn't read the card: {error}": "No se pudo leer la tarjeta: {error}",
  "Custom": "Personalizado",
  "Custom Cinematic": "Cinemático personalizado",
- "Custom RTMP": "RTMP personalizado",
+ "Custom RTMP": "Otro RTMP",
  "Custom Slomo": "Cámara lenta personalizada",
  "Dark": "Oscuro",
  "Dec": "dic",
@@ -601,7 +601,7 @@
  "{minutes} min": "{minutes} min",
  "{name} can't be changed in the camera's current mode": "{name} no se puede cambiar en el modo actual de la cámara",
  "{name} can't be changed in the camera's current mode (needs Pro controls)": "{name} no se puede cambiar en el modo actual de la cámara (requiere Control Pro)",
- "{name} preset": "Preajuste {name}",
+ "{name} preset": "{name}",
  "{name} · firmware {version}": "{name} · firmware {version}",
  "{n} HiLight": {
   "one": "{n} HiLight",
