@@ -60,7 +60,9 @@ def phone(src: pathlib.Path, width: int = 330) -> str:
 
 
 def tour(name: str, size: str, work: pathlib.Path, picture: pathlib.Path, theme: str = "") -> pathlib.Path:
-    env = dict(os.environ, QUAK_LANG="en", QUAK_TOUR_OUT=str(work), QUAK_SIM_PICTURE=str(picture), QUAK_TOUR_THEME=theme)
+    env = dict(
+        os.environ, QUAK_LANG="en", QUAK_TOUR_OUT=str(work), QUAK_SIM_PICTURE=str(picture), QUAK_TOUR_THEME=theme
+    )
     subprocess.run([str(ROOT / "tools" / "screenshots.sh"), name, size], env=env, check=True)
     return work / name / "shots"
 
