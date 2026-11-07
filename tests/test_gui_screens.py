@@ -149,6 +149,23 @@ class Screens(unittest.IsolatedAsyncioTestCase):
         give_up.assert_called_once()
         self.app.preview.update(on=False, decoder=None)
 
+    async def test_the_sd_card_tile_gets_the_most_room(self):
+        """A real card holds "11 h 37 min", which wrapped in most languages when the three tiles were equal."""
+        tiles, stack = {}, [screens.cameras(self.app)]
+        while stack:
+            c = stack.pop()
+            if isinstance(c, (list, tuple)):
+                stack.extend(c)
+                continue
+            content = getattr(c, "content", None)
+            if isinstance(content, ft.Column) and isinstance(c, ft.Container) and content.controls:
+                tiles[getattr(content.controls[0], "value", None)] = c.expand
+            for attr in ("content", "controls"):
+                if getattr(c, attr, None) is not None:
+                    stack.append(getattr(c, attr))
+        self.assertGreater(tiles["SD card"], tiles["Battery"])
+        self.assertGreater(tiles["SD card"], tiles["Clock"])
+
     async def test_every_screen_builds_in_every_language(self):
         self.addCleanup(i18n.set_language, i18n.DEFAULT)
         for code in i18n.LANGUAGES:

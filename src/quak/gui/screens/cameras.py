@@ -214,9 +214,9 @@ def _camera_card(app) -> list[ft.Control]:
         ),
         ft.Row(
             [
-                kit.stat(tr("Battery"), f"{st.s(Status.BATTERY_PERCENT, '?')}%", t),
-                kit.stat(tr("SD card"), _hms(st.s(Status.REMAINING_VIDEO)), t),
-                kit.stat(tr("Clock"), _offset(offset), t),
+                kit.stat(tr("Battery"), f"{st.s(Status.BATTERY_PERCENT, '?')}%", t, expand=2),
+                kit.stat(tr("SD card"), _hms(st.s(Status.REMAINING_VIDEO)), t, expand=3),  # 11 h 37 min needs the room
+                kit.stat(tr("Clock"), _offset(offset), t, expand=2),
             ],
             spacing=8,
         ),
