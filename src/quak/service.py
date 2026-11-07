@@ -22,6 +22,7 @@ from quak.connect import Target, open_camera
 from quak.core import registry as R
 from quak.core.errors import NetworkError, QuakError, Rejected
 from quak.core.registry import Status
+from quak.i18n import tr
 from quak.net.http import CameraHttp, MediaFile
 from quak.session import Trace
 
@@ -193,7 +194,7 @@ class CameraService:
         if self._closing:
             return
         self._stack = self.cam = None
-        self._emit(link="offline", error="the camera disconnected")
+        self._emit(link="offline", error=tr("the camera disconnected"))
         if self.auto_reconnect:
             for delay in (2, 5, 10, 20, 30):
                 await asyncio.sleep(delay)
@@ -247,7 +248,7 @@ class CameraService:
 
     def _need(self) -> Camera:
         if not self.cam:
-            raise QuakError("not connected to a camera")
+            raise QuakError(tr("not connected to a camera"))
         return self.cam
 
     async def _do(self, label: str, coro_fn):

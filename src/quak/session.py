@@ -21,6 +21,7 @@ from quak.core import codec, proto, redact
 from quak.core import registry as R
 from quak.core.errors import Disconnected, Rejected, Timeout
 from quak.describe import category, describe
+from quak.i18n import tr
 
 Key = tuple
 
@@ -98,11 +99,11 @@ class Session:
         self.closed = True
         with contextlib.suppress(Exception):
             await self.link.disconnect()
-        self._fail_pending(Disconnected("session closed"))
+        self._fail_pending(Disconnected(tr("session closed")))
 
     def _on_disconnect(self) -> None:
         self.disconnected.set()
-        self._fail_pending(Disconnected("the camera disconnected"))
+        self._fail_pending(Disconnected(tr("the camera disconnected")))
 
     def _fail_pending(self, exc: Exception) -> None:
         for fut in self._pending.values():
@@ -162,7 +163,7 @@ class Session:
 
     async def request(self, uuid: str, payload: bytes, key: Key, timeout: float | None = None) -> bytes:
         if not self.connected:
-            raise Disconnected("not connected to the camera")
+            raise Disconnected(tr("not connected to the camera"))
         wait = timeout or self.timeout
         async with self._lock:
             fut = asyncio.get_running_loop().create_future()
@@ -174,8 +175,13 @@ class Session:
                 return await asyncio.wait_for(fut, wait)
             except asyncio.TimeoutError:
                 raise Timeout(
-                    f"no reply on {R.short_uuid(uuid)} to {redact.hex_text('tx', uuid, payload)} within {wait:.1f} s "
-                    f"(connected: {self.link.is_connected})"
+                    tr(
+                        "no reply on {channel} to {message} within {seconds} s (connected: {connected})",
+                        channel=R.short_uuid(uuid),
+                        message=redact.hex_text("tx", uuid, payload),
+                        seconds=f"{wait:.1f}",
+                        connected=self.link.is_connected,
+                    )
                 ) from None
             finally:
                 if self._pending.get(key) is fut:
@@ -213,7 +219,7 @@ class Session:
 
     async def read(self, uuid: str) -> bytes:
         if not self.connected:
-            raise Disconnected("not connected to the camera")
+            raise Disconnected(tr("not connected to the camera"))
         return bytes(await self.link.read(uuid))
 
     # ---------------------------------------------------------------- helpers
@@ -238,7 +244,7 @@ class Session:
             if values.get(R.Status.READY, 1) == 1:
                 return
             if asyncio.get_running_loop().time() > deadline:
-                raise Timeout("the camera never reported ready")
+                raise Timeout(tr("the camera never reported ready"))
             await asyncio.sleep(0.3)
 
     async def _keepalive_loop(self) -> None:

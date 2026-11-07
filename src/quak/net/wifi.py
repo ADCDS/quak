@@ -12,6 +12,7 @@ from typing import AsyncIterator, Callable
 from quak.camera import Camera
 from quak.core.errors import AdapterInUse, NetworkError
 from quak.core.registry import Status
+from quak.i18n import tr
 from quak.net.http import CAMERA_AP_URL, CameraHttp
 from quak.net.profiles import CAMERA_PROFILE
 
@@ -77,8 +78,10 @@ async def camera_wifi(
     joiner = joiner or default_joiner()
     if joiner is None:
         raise NetworkError(
-            "the camera's Wi-Fi isn't reachable and this platform can't join it automatically; "
-            "connect to the camera's Wi-Fi by hand and use --wifi assume"
+            tr(
+                "the camera's Wi-Fi isn't reachable and this platform can't join it automatically; "
+                "connect to the camera's Wi-Fi by hand and use --wifi assume"
+            )
         )
     device = await _call(joiner.pick_device)
     previous = device.connection if device.state.startswith("connected") and device.connection else None
@@ -116,7 +119,7 @@ async def camera_wifi(
                 break
             await asyncio.sleep(0.5)
         else:
-            raise NetworkError("joined the camera's Wi-Fi but its HTTP API doesn't answer")
+            raise NetworkError(tr("joined the camera's Wi-Fi but its HTTP API doesn't answer"))
         yield api
     finally:
         await _call(joiner.down, CAMERA_PROFILE)

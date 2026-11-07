@@ -9,26 +9,37 @@ from quak.core.registry import Status
 from quak.gui import kit
 from quak.gui.screens.common import SETTING_GROUPS, _header, _label, _reason, _scroll, _value, pick
 from quak.gui.screens.remote import _preset_name
+from quak.i18n import term, tr
 
 
 def settings(app) -> ft.Control:
     t, st = app.t, app.svc.state
     if not st.connected:
-        return _scroll([_header(app, "Camera settings", back="remote"), kit.banner("Not connected.", t, "warn")])
+        return _scroll(
+            [_header(app, tr("Camera settings"), back="remote"), kit.banner(tr("Not connected."), t, "warn")]
+        )
     pro = st.settings.get(R.CONTROL_MODE) == 1
     body = [
         _header(
             app,
-            "Camera settings",
+            tr("Camera settings"),
             back="remote",
-            right=kit.text(_preset_name(app, int(st.s(Status.PRESET, 0))) + " preset", t, 13, t.text2),
+            right=kit.text(
+                tr("{name} preset", name=term(_preset_name(app, int(st.s(Status.PRESET, 0))))),
+                t,
+                13,
+                t.text2,
+                max_lines=1,
+                overflow=ft.TextOverflow.ELLIPSIS,
+                text_align=ft.TextAlign.RIGHT,
+            ),
         ),
         ft.Row(
             [
-                kit.text("Controls", t, 14, t.text2),
+                kit.text(tr("Controls"), t, 14, t.text2),
                 ft.Container(
                     kit.segmented(
-                        [("easy", "Easy"), ("pro", "Pro")],
+                        [("easy", tr("Easy")), ("pro", tr("Pro"))],
                         "pro" if pro else "easy",
                         lambda v: app.run(app.svc.set_setting, R.CONTROL_MODE, 1 if v == "pro" else 0),
                         t,
@@ -45,8 +56,10 @@ def settings(app) -> ft.Control:
     if not pro:
         body.append(
             kit.banner(
-                "In Easy controls the camera hides duration, HindSight and scheduled capture. "
-                "Switch to Pro to use them.",
+                tr(
+                    "In Easy controls the camera hides duration, HindSight and scheduled capture. "
+                    "Switch to Pro to use them."
+                ),
                 t,
                 size=13,
             )
@@ -57,12 +70,12 @@ def settings(app) -> ft.Control:
             continue
         rows = []
         for i, sid in enumerate(ids):
-            warn = "Camera stays on after a scheduled capture" if sid == 59 and st.settings.get(59) == 0 else None
+            warn = tr("Camera stays on after a scheduled capture") if sid == 59 and st.settings.get(59) == 0 else None
             if sid == R.SCHEDULED_CAPTURE:
                 rows.append(
                     kit.setting_row(
-                        "Scheduled capture",
-                        st.schedule["time"] if st.schedule["armed"] else "Off",
+                        tr("Scheduled capture"),
+                        st.schedule["time"] if st.schedule["armed"] else tr("Off"),
                         t,
                         on_click=lambda e: app.go("schedule"),
                         reason=_reason(app, sid),
@@ -82,5 +95,5 @@ def settings(app) -> ft.Control:
                     last=i == len(ids) - 1,
                 )
             )
-        body += [kit.section(group, t), kit.card(ft.Column(rows, spacing=0), t, padding=0)]
+        body += [kit.section(term(group), t), kit.card(ft.Column(rows, spacing=0), t, padding=0)]
     return _scroll(body, spacing=10)

@@ -169,7 +169,7 @@ class GuiRun:
     def start_gui(self, port: int) -> None:
         args = [sys.executable, "-m", "quak.gui.app", "--web", "--port", str(port)] + (["--sim"] if self.sim else [])
         # no desktop browser; the test mode steps need developer mode
-        env = dict(self.env, BROWSER="true", QUAK_DEV="1")
+        env = dict(self.env, BROWSER="true", QUAK_DEV="1", QUAK_LANG=os.environ.get("QUAK_LANG", "en"))
         self.procs.append(
             subprocess.Popen(
                 args,

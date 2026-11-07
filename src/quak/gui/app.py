@@ -17,34 +17,37 @@ from pathlib import Path
 
 import flet as ft
 
-from quak import config
+from quak import config, i18n
 from quak.connect import Target
 from quak.core.errors import AdapterInUse, QuakError
 from quak.core.registry import Status
 from quak.gui import kit
 from quak.gui import theme as th
+from quak.i18n import N_, term, tr
 from quak.net.wifi import recover_network
 from quak.service import CameraService
 
 TABS = [
-    ("cameras", "Cameras", ft.Icons.PHOTO_CAMERA_OUTLINED),
-    ("remote", "Remote", ft.Icons.RADIO_BUTTON_CHECKED),
-    ("media", "Media", ft.Icons.GRID_VIEW),
-    ("live", "Live", ft.Icons.SENSORS),
-    ("more", "More", ft.Icons.MORE_HORIZ),
+    ("cameras", N_("Cameras"), ft.Icons.PHOTO_CAMERA_OUTLINED),
+    ("remote", N_("Remote"), ft.Icons.RADIO_BUTTON_CHECKED),
+    ("media", N_("Media"), ft.Icons.GRID_VIEW),
+    ("live", N_("Live"), ft.Icons.SENSORS),
+    ("more", N_("More"), ft.Icons.MORE_HORIZ),
 ]
 SUBSCREEN_TAB = {"add_camera": "cameras", "schedule": "cameras", "settings": "remote"}
 # desktop rail, as in the design: Diagnostics has its own item; More (camera settings, about) sits at the bottom
 RAIL = [
-    ("cameras", "Cameras", ft.Icons.PHOTO_CAMERA_OUTLINED, {}),
-    ("remote", "Remote", ft.Icons.RADIO_BUTTON_CHECKED, {}),
-    ("media", "Media", ft.Icons.GRID_VIEW, {}),
-    ("live", "Live", ft.Icons.SENSORS, {}),
-    ("more", "Diagnostics", ft.Icons.TERMINAL, {"more_tab": "diagnostics"}),
+    ("cameras", N_("Cameras"), ft.Icons.PHOTO_CAMERA_OUTLINED, {}),
+    ("remote", N_("Remote"), ft.Icons.RADIO_BUTTON_CHECKED, {}),
+    ("media", N_("Media"), ft.Icons.GRID_VIEW, {}),
+    ("live", N_("Live"), ft.Icons.SENSORS, {}),
+    ("more", N_("Diagnostics"), ft.Icons.TERMINAL, {"more_tab": "diagnostics"}),
 ]
-RAIL_BOTTOM = ("more", "More", ft.Icons.MORE_HORIZ, {"more_tab": "camera"})
-PREVIEW_FAILED = "The camera didn't start its preview. Try again in a moment."
-NO_PICTURE = "No picture came from the camera. Try again. If it keeps happening, check that a firewall isn't blocking UDP port 8554."
+RAIL_BOTTOM = ("more", N_("More"), ft.Icons.MORE_HORIZ, {"more_tab": "camera"})
+PREVIEW_FAILED = N_("The camera didn't start its preview. Try again in a moment.")
+NO_PICTURE = N_(
+    "No picture came from the camera. Try again. If it keeps happening, check that a firewall isn't blocking UDP port 8554."
+)
 PICTURE_WAIT_SECONDS = 30
 PICTURE_CHECK_SECONDS = 1
 WIFI_IDLE_SECONDS = 60
@@ -124,6 +127,41 @@ class App:
         self.page.theme, self.page.dark_theme = _material_theme(th.LIGHT), _material_theme(th.DARK)
         self.page.bgcolor = self.t.ground
 
+    @property
+    def language_pref(self) -> str:
+        return config.get_pref("language", "system")
+
+    def apply_language(self, system_tags: list[str] | None = None) -> None:
+        """QUAK_LANG (for the test suites) comes first, then the choice in More, then the system's languages."""
+        code = os.environ.get("QUAK_LANG") or self.language_pref
+        if code == "system":
+            code = i18n.match_language(system_tags if system_tags is not None else _system_language_tags())
+        i18n.set_language(code)
+        self.page.locale_configuration = ft.LocaleConfiguration(
+            supported_locales=[_flet_locale(c) for c in i18n.LANGUAGES], current_locale=_flet_locale(i18n.language())
+        )
+        self.apply_theme()  # the fonts depend on the language
+
+    def set_language(self, pref: str) -> None:
+        config.set_pref("language", pref)
+        if pref == "system":
+            self.page.run_task(self.follow_system_language)
+        self.apply_language()
+        self.render()
+
+    async def follow_system_language(self) -> None:
+        """Python often can't tell, on a phone especially, but the device can. Only asked when nothing was chosen."""
+        if os.environ.get("QUAK_LANG") or self.language_pref != "system":
+            return
+        try:
+            info = await self.page.get_device_info()
+            tags = [_locale_tag(locale) for locale in getattr(info, "locales", None) or []]
+        except Exception:  # noqa: BLE001 - the system's language is a nicety: what's on screen still works
+            return
+        if tags and i18n.match_language(tags) != i18n.language():
+            self.apply_language(tags)
+            self.render()
+
     def set_theme(self, pref: str) -> None:
         config.set_pref("theme", pref)
         self.apply_theme()
@@ -197,13 +235,19 @@ class App:
             retry()
 
         self.dialog(
-            f"Use {device} for the camera?",
+            tr("Use {device} for the camera?", device=device),
             ft.Text(
-                f"This computer is online through {device}. Joining the camera's Wi-Fi disconnects it until "
-                "about a minute after you leave Media or stop the preview.",
+                tr(
+                    "This computer is online through {device}. Joining the camera's Wi-Fi disconnects it until "
+                    "about a minute after you leave Media or stop the preview.",
+                    device=device,
+                ),
                 color=self.t.text2,
             ),
-            [ft.TextButton("Cancel", on_click=lambda e: self.close_dialog()), ft.TextButton("Use it", on_click=yes)],
+            [
+                ft.TextButton(tr("Cancel"), on_click=lambda e: self.close_dialog()),
+                ft.TextButton(tr("Use it"), on_click=yes),
+            ],
         )
 
     def toast(self, message: str, error: bool = False, duration: int = 4000) -> None:
@@ -368,7 +412,7 @@ class App:
                     ft.NavigationBarDestination(
                         icon=ft.Icon(icon, color=t.text2, size=22),
                         selected_icon=ft.Icon(icon, color=t.nav_selected, size=22),
-                        label=name,
+                        label=term(name),
                     )
                     for _, name, icon in TABS
                 ],
@@ -388,7 +432,7 @@ class App:
                 [
                     ft.Icon(icon, color=t.nav_selected if on else t.text2, size=22),
                     ft.Text(
-                        name,
+                        term(name),
                         size=12,
                         color=t.nav_selected if on else t.text2,
                         no_wrap=True,
@@ -405,7 +449,7 @@ class App:
             bgcolor=t.accent_tint if on else None,
             on_click=lambda e: self.go(screen, **kw),
             ink=True,
-            tooltip=name,
+            tooltip=term(name),
         )
 
     def on_key(self, e) -> None:
@@ -415,7 +459,7 @@ class App:
         if e.key == " ":
             self.run(self.svc.shutter, not self.svc.state.recording)
         elif e.key.upper() == "H":
-            self.run(self.svc.hilight, ok="HiLight tagged")
+            self.run(self.svc.hilight, ok=tr("HiLight tagged"))
 
     # ---------------------------------------------------------------- shared actions
 
@@ -449,7 +493,7 @@ class App:
         decoder = FrameDecoder(port, frame, on_failed=lambda: self.run(self._no_picture))
         if not decoder.available():  # phones: no ffmpeg, so the video player (media_kit) plays the stream itself
             if not _video_player_available():
-                self.preview.update(on=False, error="ffmpeg is needed to show the preview in this build")
+                self.preview.update(on=False, error=N_("ffmpeg is needed to show the preview in this build"))
                 return
             # media_kit on the phone never opened udp:// itself: relay the stream to it over local HTTP
             from quak.net.stream import UdpHttpRelay
@@ -514,6 +558,21 @@ class App:
         return d
 
 
+def _system_language_tags() -> list[str]:
+    tags = [os.environ.get(name, "") for name in ("LC_ALL", "LC_MESSAGES", "LANG")]
+    tags += os.environ.get("LANGUAGE", "").split(":")
+    return [tag for tag in tags if tag and tag not in ("C", "POSIX")]
+
+
+def _locale_tag(locale) -> str:
+    return "-".join(p for p in (locale.language_code, locale.script_code, locale.country_code) if p)
+
+
+def _flet_locale(code: str) -> ft.Locale:
+    language, _, country = code.partition("-")
+    return ft.Locale(language, country or None)
+
+
 def _material_theme(t: th.Tokens) -> ft.Theme:
     """Material defaults (dialogs, fields, the phone tab bar) in Quak's colours and type."""
     return ft.Theme(
@@ -525,7 +584,7 @@ def _material_theme(t: th.Tokens) -> ft.Theme:
             on_surface=t.text,
             error=t.rec,
         ),
-        font_family=th.BODY_FONT,
+        font_family=th.body_font(),
         navigation_bar_theme=ft.NavigationBarTheme(
             height=76,
             label_text_style={
@@ -598,8 +657,13 @@ def main(page: ft.Page, sim: bool | None = None) -> None:
     page.fonts = dict(th.FONTS)
     service = build_service(sim, page)
     app = App(page, service, sim)
-    app.apply_theme()
+    app.apply_language()
     page.data = app
+
+    def system_language_changed(e):
+        page.run_task(app.follow_system_language)
+
+    page.on_locale_change = system_language_changed
 
     def brightness_changed(e):
         if app.theme_pref == "system":
@@ -613,6 +677,7 @@ def main(page: ft.Page, sim: bool | None = None) -> None:
     page.views[0].can_pop = False  # otherwise Android's Back leaves the app from any screen
     page.views[0].on_confirm_pop = app.on_android_back
     app.render()
+    page.run_task(app.follow_system_language)
     if not sim:
         recover_network()
     if sim or config.default_address():

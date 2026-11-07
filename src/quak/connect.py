@@ -10,6 +10,7 @@ from typing import AsyncIterator, Callable
 from quak.camera import Camera
 from quak.config import default_address, sim_state_file
 from quak.core.errors import NotFound
+from quak.i18n import tr
 from quak.session import Session, Trace
 
 
@@ -45,7 +46,7 @@ async def open_camera(t: Target) -> AsyncIterator[Camera]:
     else:
         address = t.address or default_address()
         if not address:
-            raise NotFound("no camera paired yet: open the camera's pairing screen and run `quak pair`")
+            raise NotFound(tr("no camera paired yet: open the camera's pairing screen and run `quak pair`"))
     if not t.sim and t.link_factory:
         link = t.link_factory(t, address)
     elif not t.sim:

@@ -8,6 +8,7 @@ import flet as ft
 
 from quak.gui import kit
 from quak.gui.screens.common import _centered, _header, _scroll
+from quak.i18n import N_, term, tr, trn
 
 
 def add_camera(app) -> ft.Control:
@@ -20,24 +21,25 @@ def add_camera(app) -> ft.Control:
         ],
         spacing=6,
     )
-    body = [_header(app, "Add camera", back="cameras"), progress]
+    body = [_header(app, tr("Add camera"), back="cameras"), progress]
     footer: list[ft.Control] = []
-    device = (app.add.get("device") or {}).get("name") or "the camera"
+    device = (app.add.get("device") or {}).get("name")
     if step == "instructions":
         bold = ft.TextStyle(weight=ft.FontWeight.W_600)
+        before, after = tr("Swipe down, then left, and tap {path}.").split("{path}")
         steps = [
-            [ft.TextSpan("Turn the camera on.")],
+            [ft.TextSpan(tr("Turn the camera on."))],
             [
-                ft.TextSpan("Swipe down, then left, and tap "),
-                ft.TextSpan("Preferences › Connections › Connect Device › GoPro Quik App", style=bold),
-                ft.TextSpan("."),
+                ft.TextSpan(before),
+                ft.TextSpan(tr("Preferences › Connections › Connect Device › GoPro Quik App"), style=bold),
+                ft.TextSpan(after),
             ],
-            [ft.TextSpan("Leave that screen open until Quak says it's done.")],
+            [ft.TextSpan(tr("Leave that screen open until Quak says it's done."))],
         ]
         body += [
-            kit.title("Open the pairing screen on the camera", t, 26),
+            kit.title(tr("Open the pairing screen on the camera"), t, 26),
             kit.text(
-                "A HERO11 ignores devices it doesn't know until this screen is open. You only do this once.",
+                tr("A HERO11 ignores devices it doesn't know until this screen is open. You only do this once."),
                 t,
                 15,
                 t.text2,
@@ -65,27 +67,38 @@ def add_camera(app) -> ft.Control:
             )
             for i, spans in enumerate(steps)
         ]
-        footer = [kit.primary("Start scanning", lambda e: app.run(_scan, app), t, height=52)]
+        footer = [kit.primary(tr("Start scanning"), lambda e: app.run(_scan, app), t, height=52)]
     elif step == "scanning":
         scanning, found = app.add.get("scanning"), app.add["found"]
         body.append(
-            kit.title("Looking for cameras" if scanning else "Pick your camera" if found else "No camera found", t, 26)
+            kit.title(
+                tr("Looking for cameras") if scanning else tr("Pick your camera") if found else tr("No camera found"),
+                t,
+                26,
+            )
         )
         if scanning:
             body.append(_radar(t))
         if found:
-            body.append(kit.label("Found nearby", t))
+            body.append(kit.label(tr("Found nearby"), t))
         elif not scanning:
             seen = app.add.get("seen")
             body += [
                 kit.text(
                     (
-                        f"Saw {seen} Bluetooth device{'' if seen == 1 else 's'} nearby; none was a GoPro. "
+                        trn(
+                            "Saw {n} Bluetooth device nearby; none was a GoPro.",
+                            "Saw {n} Bluetooth devices nearby; none was a GoPro.",
+                            seen,
+                        )
+                        + " "
                         if seen is not None
                         else ""
                     )
-                    + "Check that the camera is on and close by. A camera that is connected to another "
-                    "phone or computer stops advertising, so disconnect it there first.",
+                    + tr(
+                        "Check that the camera is on and close by. A camera that is connected to another "
+                        "phone or computer stops advertising, so disconnect it there first."
+                    ),
                     t,
                     15,
                     t.text2,
@@ -100,14 +113,16 @@ def add_camera(app) -> ft.Control:
                             ft.Column(
                                 [
                                     kit.text(
-                                        dev["name"],
+                                        term(dev["name"]),
                                         t,
                                         16,
                                         weight=ft.FontWeight.W_600,
                                         color=t.text if ready else t.text2,
                                     ),
                                     kit.text(
-                                        "HERO11 Black · " + ("pairing screen open" if ready else "not in pairing mode"),
+                                        tr("HERO11 Black · pairing screen open")
+                                        if ready
+                                        else tr("HERO11 Black · not in pairing mode"),
                                         t,
                                         13,
                                         t.text2 if ready else t.text3,
@@ -117,10 +132,15 @@ def add_camera(app) -> ft.Control:
                                 expand=True,
                             ),
                             kit.primary(
-                                "Pair", lambda e, d=dev: app.run(_pair, app, d), t, height=44, text_size=15, radius=12
+                                tr("Pair"),
+                                lambda e, d=dev: app.run(_pair, app, d),
+                                t,
+                                height=44,
+                                text_size=15,
+                                radius=12,
                             )
                             if ready
-                            else kit.text("Open its pairing screen", t, 13, t.text3),
+                            else kit.text(tr("Open its pairing screen"), t, 13, t.text3),
                         ]
                     ),
                     t,
@@ -128,7 +148,7 @@ def add_camera(app) -> ft.Control:
                 )
             )
         if not scanning:
-            footer = [kit.secondary("Scan again", lambda e: app.run(_scan, app), t, height=52)]
+            footer = [kit.secondary(tr("Scan again"), lambda e: app.run(_scan, app), t, height=52)]
     elif step == "pairing":
 
         def item(caption, state, note=None):
@@ -156,14 +176,14 @@ def add_camera(app) -> ft.Control:
 
         phase = app.add.get("phase", 0)
         names = [
-            ("Connected", None),
-            ("Bonded", "no code needed"),
-            ("Telling the camera pairing is finished", None),
-            ("Syncing the camera clock", None),
+            (tr("Connected"), None),
+            (tr("Bonded"), tr("no code needed")),
+            (tr("Telling the camera pairing is finished"), None),
+            (tr("Syncing the camera clock"), None),
         ]
         body += [
-            kit.title(f"Pairing with {device}", t, 26),
-            kit.text("Keep the camera's pairing screen open.", t, 15, t.text2),
+            kit.title(tr("Pairing with {name}", name=term(device)) if device else tr("Pairing with the camera"), t, 26),
+            kit.text(tr("Keep the camera's pairing screen open."), t, 15, t.text2),
             kit.card(
                 ft.Column(
                     [
@@ -189,34 +209,42 @@ def add_camera(app) -> ft.Control:
                     bgcolor=t.ok_tint,
                     alignment=ft.Alignment.CENTER,
                 ),
-                kit.title(f"Paired with {device}", t, 26, text_align=ft.TextAlign.CENTER),
+                kit.title(
+                    tr("Paired with {name}", name=term(device)) if device else tr("Paired with the camera"),
+                    t,
+                    26,
+                    text_align=ft.TextAlign.CENTER,
+                ),
                 kit.text(
-                    "You can close the camera's pairing screen. Next time Quak connects without it.",
+                    tr("You can close the camera's pairing screen. Next time Quak connects without it."),
                     t,
                     15,
                     t.text2,
                     text_align=ft.TextAlign.CENTER,
                 ),
             ],
-            [kit.primary("Open remote", lambda e: app.go("remote"), t, height=52)],
+            [kit.primary(tr("Open remote"), lambda e: app.go("remote"), t, height=52)],
         )
     else:
+        before, after = tr(
+            "It was seen, but its pairing screen is closed, so it ignored the connection. "
+            "Open {path} on the camera and try again."
+        ).split("{path}")
         body += [
             kit.card(
                 ft.Column(
                     [
-                        kit.title("The camera isn't accepting new devices", t, 20, t.danger_text),
+                        kit.title(tr("The camera isn't accepting new devices"), t, 20, t.danger_text),
                         kit.text(app.add["error"], t, 15, t.danger_body)
                         if app.add["error"]
                         else ft.Text(
                             spans=[
+                                ft.TextSpan(before),
                                 ft.TextSpan(
-                                    "It was seen, but its pairing screen is closed, so it ignored the connection. Open "
+                                    tr("Connect Device › GoPro Quik App"),
+                                    style=ft.TextStyle(weight=ft.FontWeight.W_600),
                                 ),
-                                ft.TextSpan(
-                                    "Connect Device › GoPro Quik App", style=ft.TextStyle(weight=ft.FontWeight.W_600)
-                                ),
-                                ft.TextSpan(" on the camera and try again."),
+                                ft.TextSpan(after),
                             ],
                             size=15,
                             color=t.danger_body,
@@ -231,9 +259,11 @@ def add_camera(app) -> ft.Control:
             kit.card(
                 ft.Column(
                     [
-                        kit.text("Other things to check", t, 13, t.text2, ft.FontWeight.W_600),
+                        kit.text(tr("Other things to check"), t, 13, t.text2, ft.FontWeight.W_600),
                         kit.text(
-                            "Bluetooth is on · only one app is connected to the camera · the camera isn't recording",
+                            tr(
+                                "Bluetooth is on · only one app is connected to the camera · the camera isn't recording"
+                            ),
                             t,
                             14,
                             t.text2,
@@ -245,7 +275,7 @@ def add_camera(app) -> ft.Control:
                 padding=14,
             ),
         ]
-        footer = [kit.primary("Try again", lambda e: app.run(_scan, app), t, height=52)]
+        footer = [kit.primary(tr("Try again"), lambda e: app.run(_scan, app), t, height=52)]
     return _scroll(body, padding=20, spacing=18, footer=footer)
 
 
@@ -282,7 +312,9 @@ async def _scan_for(app) -> None:
     if app.sim:
         sim = app.svc.target.sim_camera
         await asyncio.sleep(0.6)
-        app.add["found"] = [{"address": "SIM", "name": "GoPro (simulated)", "pairing": sim.pairing_mode or sim.bonded}]
+        app.add["found"] = [
+            {"address": "SIM", "name": N_("GoPro (simulated)"), "pairing": sim.pairing_mode or sim.bonded}
+        ]
         return
     ble = getattr(app.svc, "ble", None)
     if ble is not None:  # phone: scan through the native bridge

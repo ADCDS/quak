@@ -53,6 +53,7 @@ version = { attr = "quak.__version__" }
 
 [tool.setuptools.package-data]
 "quak.gui" = ["assets/*", "assets/fonts/*", "assets/licenses/*"]
+quak = ["locale/*.json"]
 
 [tool.ruff]
 line-length = 120

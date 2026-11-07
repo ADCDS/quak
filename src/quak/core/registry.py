@@ -6,6 +6,7 @@ import datetime as dt
 import re
 
 from quak.core import tables
+from quak.i18n import N_, tr
 
 # ------------------------------------------------------------------ BLE characteristics
 
@@ -63,7 +64,7 @@ class Query:
 
 
 KEEP_ALIVE_SETTING, KEEP_ALIVE_VALUE = 0x5B, 0x42  # setting 91 (LED) with the special value 0x42
-TLV_STATUS = {0: "success", 1: "error", 2: "invalid parameter"}
+TLV_STATUS = {0: "success", 1: N_("error"), 2: N_("invalid parameter")}
 
 # ------------------------------------------------------------------ protobuf feature / action ids
 
@@ -138,7 +139,11 @@ def model_note(model: str) -> str | None:
     """A warning for any camera but the one Quak's settings tables and tests cover."""
     if not model or model == TESTED_MODEL:
         return None
-    return f"this camera is a {model}, and Quak is only tested on a {TESTED_MODEL}. Settings may be missing or wrong"
+    return tr(
+        "this camera is a {model}, and Quak is only tested on a {tested_model}. Settings may be missing or wrong",
+        model=model,
+        tested_model=TESTED_MODEL,
+    )
 
 
 AUTO_POWER_DOWN, WIRELESS_BAND, HINDSIGHT = 59, 178, 167

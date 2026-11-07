@@ -11,6 +11,7 @@ from bleak.exc import BleakError
 
 from quak.core import codec
 from quak.core.errors import BLUETOOTH_LOST, NOT_BONDED_HINT, Disconnected, NotBonded, NotFound
+from quak.i18n import term, tr
 
 
 async def scan_cameras(seconds: float = 8.0, hci: str = "hci0") -> list[dict]:
@@ -34,7 +35,7 @@ async def scan_cameras(seconds: float = 8.0, hci: str = "hci0") -> list[dict]:
         await asyncio.sleep(seconds)
         await scanner.stop()
     except BleakError as e:
-        raise Disconnected(BLUETOOTH_LOST) from e
+        raise Disconnected(term(BLUETOOTH_LOST)) from e
     return list(found.values())
 
 
@@ -89,7 +90,7 @@ class BleakLink:
                 if not any(sign in str(e) for sign in ("InProgress", "NotReady", "not found")):
                     raise
                 if attempt == 5:
-                    raise Disconnected(BLUETOOTH_LOST) from e
+                    raise Disconnected(term(BLUETOOTH_LOST)) from e
                 self.log("the Bluetooth adapter is busy; retrying the scan")
                 await asyncio.sleep(1.0 + attempt)
         try:
@@ -100,9 +101,15 @@ class BleakLink:
             try:
                 await scanner.stop()
             except BleakError as e:  # the adapter vanished under the scan
-                raise Disconnected(BLUETOOTH_LOST) from e
+                raise Disconnected(term(BLUETOOTH_LOST)) from e
         if "device" not in state:
-            raise NotFound(f"camera {self.address} not seen within {self.scan_timeout:.0f} s (is it on and nearby?)")
+            raise NotFound(
+                tr(
+                    "camera {address} not seen within {seconds} s (is it on and nearby?)",
+                    address=self.address,
+                    seconds=f"{self.scan_timeout:.0f}",
+                )
+            )
         self.advert = state.get("advert")
         return state["device"]
 
@@ -119,7 +126,7 @@ class BleakLink:
         device = await self.scan()
         bonded = await self._bonded()
         if not bonded and not (self.advert and self.advert.pairing_mode):
-            raise NotBonded(NOT_BONDED_HINT)
+            raise NotBonded(term(NOT_BONDED_HINT))
         last: Exception | None = None
         for attempt in range(1, self.retries + 1):
             self._client = BleakClient(
@@ -134,7 +141,7 @@ class BleakLink:
                 self.log(f"connect failed: {type(e).__name__}: {e}")
                 await asyncio.sleep(2)
         else:
-            raise Disconnected(f"could not connect to {self.address}: {last}")
+            raise Disconnected(tr("could not connect to {address}: {error}", address=self.address, error=last))
         if bonded and sys.platform.startswith("linux"):
             return False
         return await self._pair()
@@ -161,7 +168,7 @@ class BleakLink:
 
     async def write(self, uuid: str, data: bytes) -> None:
         if not self.is_connected:
-            raise Disconnected("not connected")
+            raise Disconnected(tr("not connected"))
         await self._client.write_gatt_char(uuid, data, response=True)
 
     async def read(self, uuid: str) -> bytes:
@@ -171,4 +178,4 @@ class BleakLink:
         try:
             await self._client.start_notify(uuid, lambda _char, data: callback(uuid, bytes(data)))
         except BleakError as e:  # the link or the adapter dropped before the services resolved
-            raise Disconnected(BLUETOOTH_LOST) from e
+            raise Disconnected(term(BLUETOOTH_LOST)) from e

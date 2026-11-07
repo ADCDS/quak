@@ -12,9 +12,7 @@ from quak.core import tables
 from quak.core.registry import Status
 from quak.gui import kit
 from quak.gui.screens.common import (
-    CHIP_PREFIX,
     GROUP_CHIPS,
-    GROUP_TITLES,
     VIDEO_CHIPS,
     _camera_name,
     _elapsed,
@@ -27,6 +25,34 @@ from quak.gui.screens.common import (
     _value,
     pick,
 )
+from quak.i18n import N_, term, tr, trn
+
+GROUP_PRESET = {
+    "video": N_("Video preset"),
+    "photo": N_("Photo preset"),
+    "timelapse": N_("Timelapse preset"),
+    "other": N_("Other preset"),
+}
+GROUP_PRESETS = {
+    "video": N_("Video presets"),
+    "photo": N_("Photo presets"),
+    "timelapse": N_("Timelapse presets"),
+    "other": N_("Other presets"),
+}
+INSPECTOR_TITLES = {
+    "video": N_("Video presets"),
+    "photo": N_("Photo presets"),
+    "timelapse": N_("Time lapse presets"),
+    "other": N_("other presets"),
+}
+
+
+def _chip_label(app, sid: int) -> str:
+    """Some values alone would be unclear on a chip: "Low" or "1 Minute" of what?"""
+    value = _value(app, sid)
+    if sid == R.VIDEO_DURATION or sid == R.MULTI_SHOT_DURATION:
+        return tr("Duration {value}", value=value)
+    return tr("HyperSmooth {value}", value=value) if sid == 135 else value
 
 
 def remote(app) -> ft.Control:
@@ -34,16 +60,16 @@ def remote(app) -> ft.Control:
     if not st.connected:
         return _scroll(
             [
-                _header(app, "Remote"),
+                _header(app, tr("Remote")),
                 kit.banner(
-                    "Not connected. Connect from the Cameras tab.", t, "warn", on_click=lambda e: app.go("cameras")
+                    tr("Not connected. Connect from the Cameras tab."), t, "warn", on_click=lambda e: app.go("cameras")
                 ),
             ]
         )
     group = R.preset_group_of(int(st.s(Status.PRESET, 0)))
     preset_name = _preset_name(app, int(st.s(Status.PRESET, 0)))
     tabs = kit.segmented(
-        [("video", "Video"), ("photo", "Photo"), ("timelapse", "Time Lapse")],
+        [("video", tr("Video")), ("photo", tr("Photo")), ("timelapse", tr("Time Lapse"))],
         group,
         lambda g: app.run(app.svc.load_group, g),
         t,
@@ -61,12 +87,12 @@ def remote(app) -> ft.Control:
             ft.Icon(ft.Icons.BATTERY_5_BAR, color=t.text2, size=18, rotate=ft.Rotate(angle=math.pi / 2)),
             kit.text(f"{st.s(Status.BATTERY_PERCENT, '?')}%", t, 13, t.text2),
             kit.text(_hms(st.s(Status.REMAINING_VIDEO)), t, 13, t.text2),
-            ft.Icon(ft.Icons.BLUETOOTH, color=t.ok, size=18, tooltip="Bluetooth connected"),
+            ft.Icon(ft.Icons.BLUETOOTH, color=t.ok, size=18, tooltip=tr("Bluetooth connected")),
             ft.Icon(
                 ft.Icons.WIFI,
                 color=t.ok if st.http else t.muted,
                 size=18,
-                tooltip="Wi-Fi connected" if st.http else "Wi-Fi off",
+                tooltip=tr("Wi-Fi connected") if st.http else tr("Wi-Fi off"),
             ),
         ],
         spacing=8,
@@ -77,7 +103,7 @@ def remote(app) -> ft.Control:
         ink=True,
         border_radius=12,
         padding=ft.Padding.only(right=8, top=6, bottom=6),
-        tooltip="Back",
+        tooltip=tr("Back"),
     )
     header = ft.Row([back, status], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
     preset_btn = ft.Container(
@@ -87,7 +113,12 @@ def remote(app) -> ft.Control:
                     [
                         kit.text(preset_name, t, 16, weight=ft.FontWeight.W_600),
                         kit.text(
-                            f"{group.capitalize()} preset · {'Pro' if st.settings.get(175) else 'Easy'} controls",
+                            " · ".join(
+                                (
+                                    term(GROUP_PRESET[group]),
+                                    tr("Pro controls") if st.settings.get(175) else tr("Easy controls"),
+                                )
+                            ),
                             t,
                             13,
                             t.text2,
@@ -104,12 +135,12 @@ def remote(app) -> ft.Control:
         padding=ft.Padding.symmetric(horizontal=16, vertical=10),
         on_click=lambda e: _preset_sheet(app, group),
         ink=True,
-        tooltip="Choose preset",
+        tooltip=tr("Choose preset"),
     )
     chips = ft.Row(
         [
             kit.chip(
-                CHIP_PREFIX.get(sid, "") + _value(app, sid),
+                _chip_label(app, sid),
                 t,
                 on_click=lambda e, s=sid: pick(app, s),
                 key=f"chip-{sid}",
@@ -123,24 +154,29 @@ def remote(app) -> ft.Control:
     )
     duration = st.settings.get(156, 100)
     if rec:
-        hint = f"Recording {clock}" + (f" · stops by itself at {_short_duration(duration)}" if duration != 100 else "")
+        hint = (
+            tr("Recording {clock} · stops by itself at {duration}", clock=clock, duration=_short_duration(duration))
+            if duration != 100
+            else tr("Recording {clock}", clock=clock)
+        )
     elif group == "photo":
-        hint = f"{st.s(Status.REMAINING_PHOTOS, '?')} photos left"
+        photos = st.s(Status.REMAINING_PHOTOS)
+        hint = tr("? photos left") if photos is None else trn("{n} photo left", "{n} photos left", photos)
     else:
-        hint = f"{_hms(st.s(Status.REMAINING_VIDEO))} of video left"
+        hint = tr("{time} of video left", time=_hms(st.s(Status.REMAINING_VIDEO)))
     controls = ft.Row(
         [
             kit.round_icon(
                 ft.Icons.FLAG_OUTLINED,
-                lambda e: app.run(app.svc.hilight, ok="HiLight tagged"),
+                lambda e: app.run(app.svc.hilight, ok=tr("HiLight tagged")),
                 t,
-                "Tag a HiLight",
+                tr("Tag a HiLight"),
                 key="hilight",
             ),
             kit.shutter(
                 rec, lambda e: app.run(app.svc.shutter, not rec), t, disabled=bool(st.busy_action == "shutter")
             ),
-            kit.round_icon(ft.Icons.TUNE, lambda e: app.go("settings"), t, "Camera settings", key="settings"),
+            kit.round_icon(ft.Icons.TUNE, lambda e: app.go("settings"), t, tr("Camera settings"), key="settings"),
         ],
         alignment=ft.MainAxisAlignment.CENTER,
         spacing=40,
@@ -148,8 +184,13 @@ def remote(app) -> ft.Control:
     hint_text = (
         app.live_text(
             lambda: (
-                f"Recording {_elapsed(app)}"
-                + (f" · stops by itself at {_short_duration(duration)}" if duration != 100 else "")
+                tr(
+                    "Recording {clock} · stops by itself at {duration}",
+                    clock=_elapsed(app),
+                    duration=_short_duration(duration),
+                )
+                if duration != 100
+                else tr("Recording {clock}", clock=_elapsed(app))
             ),
             size=13,
             color=t.text2,
@@ -170,7 +211,7 @@ def _remote_desktop(app, group: str, tabs: ft.Control, rec: bool, clock: str) ->
     offset = st.clock_offset
     synced = offset is not None and abs(offset) < 2
     name = _camera_name(app)
-    link = "Bluetooth and Wi-Fi connected" if st.http else "Bluetooth connected"
+    link = tr("Bluetooth and Wi-Fi connected") if st.http else tr("Bluetooth connected")
     header = ft.Row(
         [
             ft.Column(
@@ -180,10 +221,12 @@ def _remote_desktop(app, group: str, tabs: ft.Control, rec: bool, clock: str) ->
             ),
             ft.Row(
                 [
-                    _status_pill(t, f"Battery {st.s(Status.BATTERY_PERCENT, '?')}%"),
-                    _status_pill(t, f"SD {_hms(st.s(Status.REMAINING_VIDEO))}"),
+                    _status_pill(t, tr("Battery {percent}%", percent=st.s(Status.BATTERY_PERCENT, "?"))),
+                    _status_pill(t, tr("SD {time}", time=_hms(st.s(Status.REMAINING_VIDEO)))),
                     _status_pill(
-                        t, "Clock synced" if synced else f"Clock {_offset(offset)}", dot=t.ok if synced else t.warn
+                        t,
+                        tr("Clock synced") if synced else tr("Clock {offset}", offset=_offset(offset)),
+                        dot=t.ok if synced else t.warn,
                     ),
                 ],
                 spacing=8,
@@ -192,9 +235,14 @@ def _remote_desktop(app, group: str, tabs: ft.Control, rec: bool, clock: str) ->
         ]
     )
     hint_text = (
-        app.live_text(lambda: f"Recording {_elapsed(app)} · Space to stop", size=14, color=t.text2, key="shutter-hint")
+        app.live_text(
+            lambda: tr("Recording {clock} · Space to stop", clock=_elapsed(app)),
+            size=14,
+            color=t.text2,
+            key="shutter-hint",
+        )
         if rec
-        else ft.Text("Space to record · H for HiLight", size=14, color=t.text2, key="shutter-hint")
+        else ft.Text(tr("Space to record · H for HiLight"), size=14, color=t.text2, key="shutter-hint")
     )
     controls = ft.Row(
         [
@@ -203,9 +251,9 @@ def _remote_desktop(app, group: str, tabs: ft.Control, rec: bool, clock: str) ->
                 [
                     kit.round_icon(
                         ft.Icons.FLAG_OUTLINED,
-                        lambda e: app.run(app.svc.hilight, ok="HiLight tagged"),
+                        lambda e: app.run(app.svc.hilight, ok=tr("HiLight tagged")),
                         t,
-                        "Tag a HiLight",
+                        tr("Tag a HiLight"),
                         size=52,
                         key="hilight",
                     ),
@@ -275,7 +323,7 @@ def _preview(app, radius: int = 16) -> ft.Control:
         content = None
     elif pv["on"]:
         content = ft.Column(
-            [ft.ProgressRing(color=t.accent), kit.text("Starting preview…", t, 14, t.text2)],
+            [ft.ProgressRing(color=t.accent), kit.text(tr("Starting preview…"), t, 14, t.text2)],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             alignment=ft.MainAxisAlignment.CENTER,
         )
@@ -284,16 +332,17 @@ def _preview(app, radius: int = 16) -> ft.Control:
             ft.Column(
                 [
                     ft.Icon(ft.Icons.WIFI, color=t.text2, size=30),
-                    kit.text("Preview uses the camera's Wi-Fi", t, 16, weight=ft.FontWeight.W_600),
+                    kit.text(tr("Preview uses the camera's Wi-Fi"), t, 16, weight=ft.FontWeight.W_600),
                     kit.text(
-                        pv["error"] or "Controls keep working over Bluetooth. Preview drains the battery faster.",
+                        term(pv["error"])
+                        or tr("Controls keep working over Bluetooth. Preview drains the battery faster."),
                         t,
                         13,
                         t.text2,
                         text_align=ft.TextAlign.CENTER,
                     ),
                     kit.secondary(
-                        "Start preview", lambda e: app.run(app.start_preview), t, height=40, text_size=14, radius=12
+                        tr("Start preview"), lambda e: app.run(app.start_preview), t, height=40, text_size=14, radius=12
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -307,7 +356,7 @@ def _preview(app, radius: int = 16) -> ft.Control:
         overlays.append(
             ft.Container(
                 ft.Container(
-                    kit.text("Preview pauses while recording", t, 13, "#FFFFFF"),
+                    kit.text(tr("Preview pauses while recording"), t, 13, "#FFFFFF"),
                     bgcolor="#BF0B0D10",
                     border_radius=14,
                     padding=ft.Padding.symmetric(horizontal=12, vertical=6),
@@ -320,7 +369,9 @@ def _preview(app, radius: int = 16) -> ft.Control:
             )
         )
     if st.recording:
-        rec_text = app.live_text(lambda: f"REC {_elapsed(app)}", size=12, color="#FFFFFF", weight=ft.FontWeight.W_700)
+        rec_text = app.live_text(
+            lambda: tr("REC {clock}", clock=_elapsed(app)), size=12, color="#FFFFFF", weight=ft.FontWeight.W_700
+        )
         overlays.append(
             ft.Container(
                 ft.Container(
@@ -338,11 +389,14 @@ def _preview(app, radius: int = 16) -> ft.Control:
             )
         )
     elif pv["on"] and (pv["frame"] or pv.get("player")):  # only once frames are coming
-        overlays.append(ft.Container(kit.pill("LIVE PREVIEW", t, dot=t.ok, bg="#B80B0D10", bold=True), left=14, top=14))
+        overlays.append(
+            ft.Container(kit.pill(tr("LIVE PREVIEW"), t, dot=t.ok, bg="#B80B0D10", bold=True), left=14, top=14)
+        )
     if pv["on"]:
         group = R.preset_group_of(int(st.s(Status.PRESET, 0)))
+        fps = st.settings.get(3)
         summary = (
-            f"{_value(app, 121)} · {_value(app, 2)} · {_value(app, 3).removesuffix(' fps')}"
+            f"{_value(app, 121)} · {_value(app, 2)} · {'—' if fps is None else R.value_label(3, fps)}"
             if group == "video"
             else " · ".join(_value(app, s) for s in GROUP_CHIPS.get(group, [])[:2])
         )
@@ -359,7 +413,7 @@ def _preview(app, radius: int = 16) -> ft.Control:
                         alignment=ft.Alignment.CENTER,
                         on_click=lambda e: app.run(app.stop_preview),
                         ink=True,
-                        tooltip="Stop preview",
+                        tooltip=tr("Stop preview"),
                     ),
                     right=12,
                     top=12,
@@ -388,7 +442,7 @@ def _inspector(app) -> ft.Control:
     gid = R.PRESET_GROUPS[group] if group in R.PRESET_GROUPS else 1000
     presets = next((g["preset_array"] for g in st.presets if g["id"] == gid), [])
     cur = int(st.s(Status.PRESET, 0))
-    rows = [ft.Container(kit.label(f"{GROUP_TITLES.get(group, group)} presets", t), padding=ft.Padding.only(bottom=4))]
+    rows = [ft.Container(kit.label(term(INSPECTOR_TITLES[group]), t), padding=ft.Padding.only(bottom=4))]
     for p in presets:
         on = p["id"] == cur
         rows.append(
@@ -429,7 +483,7 @@ def _inspector(app) -> ft.Control:
         ft.Row(
             [
                 ft.TextButton(
-                    "All settings", on_click=lambda e: app.go("settings"), style=ft.ButtonStyle(color=t.accent)
+                    tr("All settings"), on_click=lambda e: app.go("settings"), style=ft.ButtonStyle(color=t.accent)
                 )
             ],
             alignment=ft.MainAxisAlignment.END,
@@ -438,7 +492,11 @@ def _inspector(app) -> ft.Control:
     if st.schedule["armed"]:
         items.append(
             kit.banner(
-                f"Scheduled {st.schedule['time']} · {_short_duration(st.schedule['duration'])}",
+                tr(
+                    "Scheduled {time} · {duration}",
+                    time=st.schedule["time"],
+                    duration=_short_duration(st.schedule["duration"]),
+                ),
                 t,
                 icon=ft.Icons.SCHEDULE,
                 on_click=lambda e: app.go("schedule"),
@@ -451,8 +509,10 @@ def _preset_name(app, preset_id: int) -> str:
     for g in app.svc.state.presets:
         for p in g["preset_array"]:
             if p["id"] == preset_id:
-                return p.get("custom_name") or tables.PRESET_TITLES.get(p.get("title_id"), f"Preset {preset_id:#x}")
-    return f"Preset {preset_id:#x}"
+                title = tables.PRESET_TITLES.get(p.get("title_id"), tr("Preset {id}", id=f"{preset_id:#x}"))
+                # "Log" is a video format here, and in the catalogs it's the Diagnostics tab
+                return p.get("custom_name") or (title if title == "Log" else term(title))
+    return tr("Preset {id}", id=f"{preset_id:#x}")
 
 
 def _preset_sheet(app, group: str) -> None:
@@ -463,10 +523,10 @@ def _preset_sheet(app, group: str) -> None:
 
     def choose(pid):
         app.close_dialog()
-        app.run(app.svc.load_preset, pid, ok=f"{_preset_name(app, pid)} loaded")
+        app.run(app.svc.load_preset, pid, ok=tr("{preset} loaded", preset=_preset_name(app, pid)))
 
     app.dialog(
-        f"{group.capitalize()} presets",
+        term(GROUP_PRESETS[group]),
         ft.Column(
             [
                 ft.ListTile(
@@ -477,5 +537,5 @@ def _preset_sheet(app, group: str) -> None:
             ],
             tight=True,
         ),
-        [ft.TextButton("Cancel", on_click=lambda e: app.close_dialog())],
+        [ft.TextButton(tr("Cancel"), on_click=lambda e: app.close_dialog())],
     )

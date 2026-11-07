@@ -13,6 +13,9 @@ from quak.camera import Camera
 from quak.core import registry as R
 from quak.core.errors import QuakError, Rejected
 from quak.core.registry import Status
+from quak.i18n import N_, term, tr
+
+AUTO_POWER_OFF_NEVER = N_("Auto Power Off is Never: the camera stays on after the capture until its battery runs out")
 
 
 @dataclass
@@ -49,7 +52,7 @@ async def arm_schedule(
     if await cam.setting(R.CONTROL_MODE) != 1:
         log("switching to Pro controls (scheduled capture is hidden in Easy)")
         await set_setting(R.CONTROL_MODE, 1)
-        warnings.append("the camera stays on Pro controls")
+        warnings.append(tr("the camera stays on Pro controls"))
         await asyncio.sleep(0.5)
     if sync_clock:
         await cam.sync_clock()
@@ -69,30 +72,40 @@ async def arm_schedule(
         value = R.duration_value(duration or "no limit")
         allowed = (await cam.capabilities([R.VIDEO_DURATION])).get(R.VIDEO_DURATION, [])
         if allowed and value not in allowed:
-            raise Rejected("duration", f"{R.value_label(R.VIDEO_DURATION, value)} not allowed in this preset")
+            raise Rejected(
+                "duration", tr("{value} not allowed in this preset", value=term(R.value_label(R.VIDEO_DURATION, value)))
+            )
         if allowed:
             previous = await cam.setting(R.VIDEO_DURATION)
             await set_setting(R.VIDEO_DURATION, value)
             if value != previous:
                 warnings.append(
-                    f"Video Duration is now {R.value_label(R.VIDEO_DURATION, value)} (it was "
-                    f"{R.value_label(R.VIDEO_DURATION, previous)}), which also limits recordings you start "
-                    "yourself. Change it back in the camera's settings when you're done"
+                    tr(
+                        "Video Duration is now {value} (it was {previous}), which also limits recordings you start "
+                        "yourself. Change it back in the camera's settings when you're done",
+                        value=term(R.value_label(R.VIDEO_DURATION, value)),
+                        previous=term(R.value_label(R.VIDEO_DURATION, previous)),
+                    )
                 )
         elif duration is not None:
-            warnings.append("this preset has no Duration setting; the capture length is the preset's default")
+            warnings.append(tr("this preset has no Duration setting; the capture length is the preset's default"))
     await set_setting(R.SCHEDULED_CAPTURE, R.encode_schedule(when.hour, when.minute))
     st = await cam.statuses([Status.SCHEDULE_ARMED, Status.SCHEDULE_PRESET, Status.PRESET])
     if st[Status.SCHEDULE_ARMED] != 1:
-        raise Rejected("scheduled capture", "the camera accepted 168 but status 108 is not armed")
+        raise Rejected("scheduled capture", tr("the camera accepted 168 but status 108 is not armed"))
     pid = int(st[Status.SCHEDULE_PRESET])
     if R.preset_group_of(pid) != expected_group:
         raise Rejected(
             "scheduled capture",
-            f"armed with preset 0x{pid:08x} ({R.preset_group_of(pid)}), not a {expected_group} preset",
+            tr(
+                "armed with preset {preset} ({group}), not a {expected} preset",
+                preset=f"0x{pid:08x}",
+                group=R.preset_group_of(pid),
+                expected=expected_group,
+            ),
         )
     if await cam.setting(R.AUTO_POWER_DOWN) == 0:
-        warnings.append("Auto Power Off is Never: the camera stays on after the capture until its battery runs out")
+        warnings.append(term(AUTO_POWER_OFF_NEVER))
     slept = False
     if sleep_after:
         await cam.sleep()
@@ -176,7 +189,10 @@ async def join_camera_network(
     entries = await cam.scan_networks()
     entry = next((e for e in entries if e.get("ssid") == ssid), None)
     if entry is None:
-        raise Rejected(f"join {ssid!r}", f"the camera can't see it (sees: {', '.join(e['ssid'] for e in entries)})")
+        raise Rejected(
+            f"join {ssid!r}",
+            tr("the camera can't see it (sees: {networks})", networks=", ".join(e["ssid"] for e in entries)),
+        )
     configured = bool(entry.get("scan_entry_flags", 0) & proto.SCAN_FLAG_CONFIGURED)
     log(f"camera joining {ssid} ({'remembered' if configured else 'new'} network)")
     state = await cam.join_network(ssid, password, configured)
@@ -224,7 +240,7 @@ async def livestream(
         if status.get("live_stream_bitrate"):
             bitrates.append(status["live_stream_bitrate"])
         if st == 5:
-            raise Rejected("livestream", proto.LIVE_STREAM_ERROR.get(status.get("live_stream_error"), "failed"))
+            raise Rejected("livestream", proto.LIVE_STREAM_ERROR.get(status.get("live_stream_error"), N_("failed")))
         return st
 
     async def wait_for(target: int, timeout: float) -> None:
@@ -232,7 +248,13 @@ async def livestream(
         while True:
             left = deadline - asyncio.get_running_loop().time()
             if left <= 0:
-                raise Timeout(f"livestream never reached {proto.LIVE_STREAM_STATE[target]} (states: {states})")
+                raise Timeout(
+                    tr(
+                        "livestream never reached {state} (states: {states})",
+                        state=proto.LIVE_STREAM_STATE[target],
+                        states=states,
+                    )
+                )
             try:
                 _, msg = await asyncio.wait_for(q.get(), min(left, 2.0))
                 if note(proto.decode("NotifyLiveStreamStatus", msg[2:])) == target:
@@ -264,8 +286,10 @@ async def livestream(
         except Timeout:
             if states == ["IDLE"]:
                 raise LivestreamStuck(
-                    "the camera ignored the livestream request (stayed IDLE); a HERO11 does "
-                    "this after its Wi-Fi was just switched off, and a sleep/wake resets it"
+                    tr(
+                        "the camera ignored the livestream request (stayed IDLE); a HERO11 does "
+                        "this after its Wi-Fi was just switched off, and a sleep/wake resets it"
+                    )
                 )
             raise
         await asyncio.sleep(2)  # GoPro's SDK waits here too

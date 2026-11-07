@@ -1,5 +1,7 @@
 """Exceptions shared by the backend, CLI and GUI. Each carries the CLI exit code it maps to."""
 
+from quak.i18n import N_, term, tr
+
 
 class QuakError(Exception):
     exit_code = 1
@@ -25,7 +27,7 @@ class Rejected(QuakError):
     exit_code = 4
 
     def __init__(self, what: str, status: int | str):
-        super().__init__(f"{what}: camera answered {status}")
+        super().__init__(tr("{what}: camera answered {status}", what=what, status=term(status)))
         self.status = status
 
 
@@ -44,9 +46,12 @@ class AdapterInUse(NetworkError):
 
     def __init__(self, device: str) -> None:
         super().__init__(
-            f"Wi-Fi adapter {device} is this computer's network connection: joining the camera's Wi-Fi would "
-            "cut it off until Quak is done. Allow it with --wifi-adapter " + device + ", or plug in a second "
-            "adapter"
+            tr(
+                "Wi-Fi adapter {device} is this computer's network connection: joining the camera's Wi-Fi would "
+                "cut it off until Quak is done. Allow it with --wifi-adapter {device}, or plug in a second "
+                "adapter",
+                device=device,
+            )
         )
         self.device = device
 
@@ -57,9 +62,9 @@ class Unsupported(QuakError):
     exit_code = 7
 
 
-BLUETOOTH_LOST = "Bluetooth stopped responding while connecting. Check that Bluetooth is on, then try again."
+BLUETOOTH_LOST = N_("Bluetooth stopped responding while connecting. Check that Bluetooth is on, then try again.")
 
-NOT_BONDED_HINT = (
+NOT_BONDED_HINT = N_(
     "This device isn't bonded with the camera and the camera isn't on its pairing screen, so it "
     "ignores the connection. On the camera open Preferences > Connections > Connect Device > "
     "GoPro Quik App, then run `quak pair`."

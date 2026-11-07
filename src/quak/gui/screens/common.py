@@ -7,58 +7,56 @@ import time
 
 import flet as ft
 
+from quak import i18n
 from quak.core import registry as R
 from quak.gui import kit
 from quak.gui import theme as th
+from quak.i18n import N_, term, tr
 
 VIDEO_CHIPS = [2, 3, 121, 135, 156]
 
 GROUP_CHIPS = {"video": VIDEO_CHIPS, "photo": [122, 125, 151], "timelapse": [5, 123, 179, 156, 157]}
 
 SETTING_GROUPS = [
-    ("Video", [2, 3, 121, 135, 150, 156, 167, 168, 180]),
-    ("Photo", [122, 125, 151]),
-    ("Time Lapse", [5, 30, 32, 123, 157, 179]),
-    ("General", [83, 91, 88, 134, 128]),
-    ("Power", [59]),
-    ("Connections", [178]),
+    (N_("Video"), [2, 3, 121, 135, 150, 156, 167, 168, 180]),
+    (N_("Photo"), [122, 125, 151]),
+    (N_("Time Lapse"), [5, 30, 32, 123, 157, 179]),
+    (N_("General"), [83, 91, 88, 134, 128]),
+    (N_("Power"), [59]),
+    (N_("Connections"), [178]),
 ]
 
 DURATIONS = ["15s", "30s", "1m", "5m", "15m", "1h", "3h"]
 
 # friendly names, as in the design (the camera's own names are in tables.SETTINGS)
 LABELS = {
-    2: "Resolution",
-    3: "Frame rate",
-    121: "Lens",
+    2: N_("Resolution"),
+    3: N_("Frame rate"),
+    121: N_("Lens"),
     135: "HyperSmooth",
-    150: "Horizon leveling",
-    156: "Duration",
-    167: "HindSight",
-    168: "Scheduled capture",
-    180: "Video mode",
-    122: "Lens",
-    125: "Output",
-    151: "Horizon leveling",
-    5: "Interval",
-    30: "Interval",
-    32: "Interval",
-    123: "Lens",
-    157: "Duration",
-    179: "Star trails",
-    83: "GPS",
-    91: "LEDs",
-    88: "Screen brightness",
-    134: "Anti-flicker",
-    128: "Media format",
-    59: "Auto power off",
-    178: "Camera Wi-Fi band",
-    175: "Controls",
+    150: N_("Horizon leveling"),
+    156: N_("Duration"),
+    167: N_("HindSight"),
+    168: N_("Scheduled capture"),
+    180: N_("Video mode"),
+    122: N_("Lens"),
+    125: N_("Output"),
+    151: N_("Horizon leveling"),
+    5: N_("Interval"),
+    30: N_("Interval"),
+    32: N_("Interval"),
+    123: N_("Lens"),
+    157: N_("Duration"),
+    179: N_("Star trails"),
+    83: N_("GPS"),
+    91: N_("LEDs"),
+    88: N_("Screen brightness"),
+    134: N_("Anti-flicker"),
+    128: N_("Media format"),
+    59: N_("Auto power off"),
+    178: N_("Camera Wi-Fi band"),
+    175: N_("Controls"),
 }
-
-GROUP_TITLES = {"video": "Video", "photo": "Photo", "timelapse": "Time lapse"}
-
-CHIP_PREFIX = {135: "HyperSmooth ", 156: "Duration ", 157: "Duration "}  # chips whose value alone would be unclear
 
 
 def _scroll(controls, padding=16, spacing=16, footer: list | None = None) -> ft.Container:
@@ -79,31 +77,36 @@ def _offset(seconds: float | None) -> str:
     if seconds is None:
         return "—"
     n = round(seconds)
-    return f"{n:+d} s" if n else "0 s"
+    return tr("{seconds} s", seconds=f"{n:+d}" if n else 0)
 
 
 def _header(app, title: str, back: str | None = None, right: ft.Control | None = None) -> ft.Row:
     t = app.t
     left = []
     if back:
-        left.append(kit.icon_button(ft.Icons.CHEVRON_LEFT, "Back", lambda e: app.go(back), t))
+        left.append(kit.icon_button(ft.Icons.CHEVRON_LEFT, tr("Back"), lambda e: app.go(back), t))
     left.append(kit.title(title, t, th.TITLE))
-    return ft.Row([ft.Row(left, spacing=4), right or ft.Container()], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+    side = ft.Container(right, expand=True, alignment=ft.Alignment.CENTER_RIGHT) if right else ft.Container()
+    return ft.Row([ft.Row(left, spacing=4, tight=True), side], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
 
 
 def _value(app, sid: int) -> str:
     v = app.svc.state.settings.get(sid)
     if v is None:
         return "—"
-    text = re.sub(r"(\d)(G?Hz)\b", r"\1 \2", R.value_label(sid, v))
-    return f"{text} fps" if sid == 3 else text
+    text = re.sub(r"(\d)(G?Hz)\b", r"\1 \2", term(R.value_label(sid, v)))
+    return tr("{value} fps", value=text) if sid == 3 else text
 
 
 def _hms(seconds: float | int | None) -> str:
     if seconds is None:
         return "—"
     s = int(seconds)
-    return f"{s // 3600} h {s % 3600 // 60} m" if s >= 3600 else f"{s // 60} m {s % 60} s" if s >= 60 else f"{s} s"
+    if s >= 3600:
+        return tr("{hours} h {minutes} m", hours=s // 3600, minutes=s % 3600 // 60)
+    if s >= 60:
+        return tr("{minutes} m {seconds} s", minutes=s // 60, seconds=s % 60)
+    return tr("{seconds} s", seconds=s)
 
 
 def pick(app, sid: int) -> None:
@@ -114,11 +117,11 @@ def pick(app, sid: int) -> None:
 
     def choose(v):
         app.close_dialog()
-        app.run(app.svc.set_setting, sid, v, ok=f"{_label(sid)} = {R.value_label(sid, v)}")
+        app.run(app.svc.set_setting, sid, v, ok=f"{_label(sid)} = {term(R.value_label(sid, v))}")
 
     options = [
         ft.ListTile(
-            title=ft.Text(R.value_label(sid, v), color=t.accent if v == current else t.text),
+            title=ft.Text(term(R.value_label(sid, v)), color=t.accent if v == current else t.text),
             trailing=ft.Icon(ft.Icons.CHECK, color=t.accent) if v == current else None,
             on_click=lambda e, v=v: choose(v),
         )
@@ -127,7 +130,7 @@ def pick(app, sid: int) -> None:
     app.dialog(
         _label(sid),
         ft.Column(options, tight=True, scroll=ft.ScrollMode.AUTO, height=min(420, 56 * len(options))),
-        [ft.TextButton("Cancel", on_click=lambda e: app.close_dialog())],
+        [ft.TextButton(tr("Cancel"), on_click=lambda e: app.close_dialog())],
     )
 
 
@@ -136,12 +139,12 @@ def _reason(app, sid: int) -> str | None:
     if st.caps.get(sid):
         return None
     if sid in R.PRO_ONLY and st.settings.get(R.CONTROL_MODE) == 0:
-        return "Needs Pro controls"
-    return "Not available in this mode"
+        return tr("Needs Pro controls")
+    return tr("Not available in this mode")
 
 
 def _label(sid: int) -> str:
-    return LABELS.get(sid) or R.setting_name(sid)
+    return term(LABELS.get(sid) or R.setting_name(sid))
 
 
 def _fw(firmware: str) -> str:
@@ -153,7 +156,7 @@ def _fw(firmware: str) -> str:
 
 
 def _camera_name(app) -> str:
-    return "Simulated" if app.sim else (app.svc.state.name or "")
+    return tr("Simulated") if app.sim else (app.svc.state.name or "")
 
 
 def _centered(app, top: list, middle: list, footer: list) -> ft.Control:
@@ -181,16 +184,16 @@ def _centered(app, top: list, middle: list, footer: list) -> ft.Control:
 def _short_duration(value) -> str:
     """15 Seconds -> 15 s, 1 Minute -> 1 min, as the design writes durations."""
     text = R.value_label(156, value or 100)
-    for long, short in (
-        ("Seconds", "s"),
-        ("Second", "s"),
-        ("Minutes", "min"),
-        ("Minute", "min"),
-        ("Hours", "h"),
-        ("Hour", "h"),
-    ):
-        text = text.replace(long, short)
-    return text.replace("No Limit", "No limit")
+    if text == "No Limit":
+        return tr("No limit")
+    number, unit = text.partition(" ")[::2]
+    if unit in ("Seconds", "Second"):
+        return tr("{seconds} s", seconds=number)
+    if unit in ("Minutes", "Minute"):
+        return tr("{minutes} min", minutes=number)
+    if unit in ("Hours", "Hour"):
+        return tr("{hours} h", hours=number)
+    return text
 
 
 def _elapsed(app) -> str:
@@ -202,5 +205,5 @@ def _elapsed(app) -> str:
 def _size(n: int) -> str:
     """4.2 MB, 39 MB, 183.2 GB"""
     if n >= 1e9:
-        return f"{n / 1e9:.1f} GB"
-    return f"{n / 1e6:.1f} MB" if n < 10e6 else f"{n / 1e6:.0f} MB"
+        return tr("{size} GB", size=i18n.decimal(f"{n / 1e9:.1f}"))
+    return tr("{size} MB", size=i18n.decimal(f"{n / 1e6:.1f}" if n < 10e6 else f"{n / 1e6:.0f}"))
