@@ -60,8 +60,9 @@ camera's Wi-Fi, media list, thumbnails, info, download, opening the share sheet 
 during preview, and the Back button. Not tested: scheduled capture, settings, HiLights, livestream, and the self-test.
 
 **Translations.** Every screen was checked by eye on the simulator at phone size in all seven translated languages, and in German and
-Japanese at desktop size. The language picker and following the system's language were tested in the Linux desktop app. They haven't been
-tried on Android or Windows, or reviewed by native speakers. The camera's menu names in Spanish and German come from copies of GoPro's HERO11
+Japanese at desktop size. The language picker and following the system's language were tested in the Linux desktop app and on the Android
+phone, where the signed release build also updated over the previous version in place, reconnected to the camera and listed its media in
+Portuguese, and Chinese, Japanese and Russian rendered correctly. They haven't been tried on Windows, or reviewed by native speakers. The camera's menu names in Spanish and German come from copies of GoPro's HERO11
 manual. In the other languages they come from GoPro's support pages, so the app shows the English next to them.
 
 **Windows.** Never launched. CI runs the unit tests on Windows, and the `netsh` code is only unit-tested with invented output.
@@ -73,7 +74,7 @@ tag:
 |---|---|
 | Linux | Launched, and walked every screen on the simulator |
 | Windows | Built, and its contents inspected. Never launched |
-| Android | Built and signed, and its contents, permissions and signature inspected. The phone tests above used a debug-signed build from earlier the same day |
+| Android | Built and signed, and its contents, permissions and signature inspected. The feature tests above used a debug-signed build from shortly before; the signed build was used on the phone for connecting, media and languages |
 
 ## Images
 

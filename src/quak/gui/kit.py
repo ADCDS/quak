@@ -266,13 +266,13 @@ def pill(
     )
 
 
-def stat(name: str, value: str, t: Tokens) -> ft.Container:
+def stat(name: str, value: str, t: Tokens, expand: int = 1) -> ft.Container:
     return ft.Container(
         content=ft.Column([text(name, t, 12, t.text2), text(value, t, 16, weight=ft.FontWeight.W_600)], spacing=2),
         bgcolor=t.surface2,
         border_radius=12,
         padding=ft.Padding.symmetric(horizontal=12, vertical=10),
-        expand=True,
+        expand=expand,
     )
 
 
