@@ -8,13 +8,14 @@ import subprocess
 from pathlib import Path
 
 from quak.core.errors import NetworkError
+from quak.i18n import tr
 
 FFMPEG, FFPROBE = shutil.which("ffmpeg"), shutil.which("ffprobe")
 
 
 def _need(tool: str | None, name: str) -> str:
     if not tool:
-        raise NetworkError(f"{name} not found; install ffmpeg")
+        raise NetworkError(tr("{tool} not found; install ffmpeg", tool=name))
     return tool
 
 
@@ -70,9 +71,11 @@ def probe_udp(port: int, seconds: float = 15.0) -> dict:
     try:
         p = subprocess.run(args, capture_output=True, text=True, timeout=seconds + 10)
     except subprocess.TimeoutExpired:
-        raise NetworkError(f"no stream on UDP {port} within {seconds:.0f} s") from None
+        raise NetworkError(
+            tr("no stream on UDP {port} within {seconds} s", port=port, seconds=f"{seconds:.0f}")
+        ) from None
     if p.returncode:
-        raise NetworkError(f"no stream on UDP {port}: {p.stderr.strip()[:200]}")
+        raise NetworkError(tr("no stream on UDP {port}: {error}", port=port, error=p.stderr.strip()[:200]))
     return _summary(json.loads(p.stdout or "{}"))
 
 

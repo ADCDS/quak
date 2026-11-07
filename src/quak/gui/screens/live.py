@@ -10,13 +10,17 @@ import flet as ft
 from quak import config
 from quak.gui import kit
 from quak.gui.screens.common import _scroll
+from quak.i18n import tr, trn
 
 
 def live(app) -> ft.Control:
     t, st, lv = app.t, app.svc.state, app.live
     if not st.connected:
         return _scroll(
-            [kit.title("Live", t), kit.banner("Not connected.", t, "warn", on_click=lambda e: app.go("cameras"))]
+            [
+                kit.title(tr("Live"), t),
+                kit.banner(tr("Not connected."), t, "warn", on_click=lambda e: app.go("cameras")),
+            ]
         )
     f = app.form.setdefault(
         "live",
@@ -42,25 +46,30 @@ def live(app) -> ft.Control:
                             border_radius=2,
                             bgcolor=(t.rec if s == "STREAMING" else t.ok) if _reached(state, s) else t.line,
                         ),
-                        kit.text(s.capitalize(), t, 13, t.text if s == state else t.text2),
+                        kit.text(caption, t, 13, t.text if s == state else t.text2),
                     ],
                     spacing=6,
                     expand=True,
                 )
-                for s in ("CONFIG", "READY", "STREAMING")
+                for s, caption in (("CONFIG", tr("Config")), ("READY", tr("Ready")), ("STREAMING", tr("Streaming")))
             ],
             spacing=8,
         )
         return _scroll(
             [
-                kit.title("Live", t),
+                kit.title(tr("Live"), t),
                 ft.Container(
                     ft.Stack(
                         [
                             ft.Container(bgcolor="#22303F", expand=True),
                             ft.Container(
                                 kit.pill(
-                                    f"LIVE · {state.lower()}", t, dot="#FFFFFF", bg=t.rec, fg="#FFFFFF", bold=True
+                                    tr("LIVE · {state}", state=_state_word(state)),
+                                    t,
+                                    dot="#FFFFFF",
+                                    bg=t.rec,
+                                    fg="#FFFFFF",
+                                    bold=True,
                                 ),
                                 left=10,
                                 top=10,
@@ -75,7 +84,7 @@ def live(app) -> ft.Control:
                 *[kit.text(line, t, 13, t.text2) for line in lv["log"][-6:]],
             ],
             spacing=14,
-            footer=[kit.destructive("End stream", lambda e: lv["task"].cancel(), t, height=54, text_size=17)],
+            footer=[kit.destructive(tr("End stream"), lambda e: lv["task"].cancel(), t, height=54, text_size=17)],
         )
 
     def field(value, on_change, password=True, hint=None):
@@ -96,7 +105,7 @@ def live(app) -> ft.Control:
         )
 
     dest = kit.segmented(
-        [("youtube", "YouTube"), ("twitch", "Twitch"), ("custom", "Custom RTMP")],
+        [("youtube", "YouTube"), ("twitch", "Twitch"), ("custom", tr("Custom RTMP"))],
         f["dest"],
         lambda v: (f.update(dest=v), app.render()),
         t,
@@ -104,7 +113,7 @@ def live(app) -> ft.Control:
     )
     custom = f["dest"] == "custom"
     target = [
-        kit.text("RTMP URL" if custom else "Stream key", t, 13, t.text2),
+        kit.text(tr("RTMP URL") if custom else tr("Stream key"), t, 13, t.text2),
         field(
             f["url"] if custom else f["key"],
             lambda e: f.update({"url" if custom else "key": e.control.value}),
@@ -116,8 +125,8 @@ def live(app) -> ft.Control:
     def network_row(n, last):
         on = f["ssid"] == n["ssid"]
         mhz = n.get("signal_frequency_mhz", 0) or 0
-        band = "5 GHz" if mhz >= 4900 else "2.4 GHz"
-        sub = "Open network" if n.get("scan_entry_flags", 0) & 1 else f"Found by the camera · {band}"
+        band = tr("5 GHz") if mhz >= 4900 else tr("2.4 GHz")
+        sub = tr("Open network") if n.get("scan_entry_flags", 0) & 1 else tr("Found by the camera · {band}", band=band)
         bars = n.get("signal_strength_bars", 0) or 0
         radio = ft.Container(
             ft.Container(width=10, height=10, border_radius=5, bgcolor=t.on_accent) if on else None,
@@ -133,7 +142,7 @@ def live(app) -> ft.Control:
                 [
                     radio,
                     ft.Column([kit.text(n["ssid"], t, 15), kit.text(sub, t, 12, t.text3)], spacing=2, expand=True),
-                    kit.text("Strong" if bars >= 3 else "Fair" if bars == 2 else "Weak", t, 13, t.text2),
+                    kit.text(tr("Strong") if bars >= 3 else tr("Fair") if bars == 2 else tr("Weak"), t, 13, t.text2),
                 ],
                 spacing=12,
             ),
@@ -146,16 +155,22 @@ def live(app) -> ft.Control:
     phone = app.page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS)
     # the lab hotspot takes this PC's Wi-Fi adapter and leaves a network saved on the camera: for people working on Quak
     lab = not phone and (app.sim or (config.developer_mode() and sys.platform.startswith("linux")))
-    body = [kit.page_title("Live", t), kit.section("Stream to", t), dest, *target, kit.label("Camera joins", t)]
+    body = [
+        kit.page_title(tr("Live"), t),
+        kit.section(tr("Stream to"), t),
+        dest,
+        *target,
+        kit.label(tr("Camera joins"), t),
+    ]
     if lab:
         body.append(
             kit.card(
                 kit.check_row(
-                    "Test mode",
+                    tr("Test mode"),
                     f["lab"],
                     lambda e: (f.update(lab=e.control.value), app.render()),
                     t,
-                    sub="This PC is the hotspot and receives the stream",
+                    sub=tr("This PC is the hotspot and receives the stream"),
                     key="lab",
                 ),
                 t,
@@ -167,7 +182,7 @@ def live(app) -> ft.Control:
         body.append(
             kit.card(
                 ft.Column(
-                    nets or [kit.text("Scan to see the networks the camera can reach.", t, 14, t.text2)], spacing=0
+                    nets or [kit.text(tr("Scan to see the networks the camera can reach."), t, 14, t.text2)], spacing=0
                 ),
                 t,
                 padding=0 if nets else 14,
@@ -175,7 +190,7 @@ def live(app) -> ft.Control:
         )
         body.append(
             kit.secondary(
-                "Scanning…" if lv["scanning"] else ("Scan again" if nets else "Scan for networks"),
+                tr("Scanning…") if lv["scanning"] else (tr("Scan again") if nets else tr("Scan for networks")),
                 lambda e: app.run(_scan_networks, app),
                 t,
                 disabled=lv["scanning"],
@@ -183,12 +198,12 @@ def live(app) -> ft.Control:
         )
         if f["ssid"]:
             body += [
-                kit.text(f"Password for {f['ssid']}", t, 13, t.text2),
+                kit.text(tr("Password for {ssid}", ssid=f["ssid"]), t, 13, t.text2),
                 field(f["password"], lambda e: f.update(password=e.control.value)),
-                kit.text("Sent to the camera only. Quak doesn't save it.", t, 12, t.text3),
+                kit.text(tr("Sent to the camera only. Quak doesn't save it."), t, 12, t.text3),
             ]
     body += [
-        kit.section("Quality", t),
+        kit.section(tr("Quality"), t),
         kit.segmented(
             [("480", "480p"), ("720", "720p"), ("1080", "1080p")],
             str(f["res"]),
@@ -198,7 +213,7 @@ def live(app) -> ft.Control:
         ),
         kit.card(
             kit.check_row(
-                "Also save to the SD card", f["encode"], lambda e: f.update(encode=e.control.value), t, key="encode"
+                tr("Also save to the SD card"), f["encode"], lambda e: f.update(encode=e.control.value), t, key="encode"
             ),
             t,
             padding=0,
@@ -207,13 +222,28 @@ def live(app) -> ft.Control:
     return _scroll(
         body,
         spacing=12,
-        footer=[kit.live_button("Go live", lambda e: _go_live(app), t, icon=ft.Icons.SENSORS, height=54, text_size=17)],
+        footer=[
+            kit.live_button(tr("Go live"), lambda e: _go_live(app), t, icon=ft.Icons.SENSORS, height=54, text_size=17)
+        ],
     )
 
 
 def _reached(state: str, step: str) -> bool:
     order = ["IDLE", "CONFIG", "READY", "STREAMING"]
     return state in order and order.index(state) >= order.index(step)
+
+
+def _state_word(state: str) -> str:
+    return {
+        "IDLE": tr("idle"),
+        "CONFIG": tr("config"),
+        "READY": tr("ready"),
+        "STREAMING": tr("streaming"),
+        "COMPLETE_STAY_ON": tr("complete"),
+        "FAILED_STAY_ON": tr("failed"),
+        "RECONNECTING": tr("reconnecting"),
+        "UNAVAILABLE": tr("unavailable"),
+    }.get(state, state.lower())
 
 
 async def _scan_networks(app) -> None:
@@ -291,8 +321,13 @@ def _go_live(app) -> None:
                     print(f"quak: RTMP receiver saved nothing ({received})", file=sys.stderr, flush=True)
                 if received.exists():
                     v = (await asyncio.to_thread(st_mod.probe_file, received, True)).get("video") or {}
-                    lv["received"] = (
-                        f"received {v.get('width')}x{v.get('height')} {v.get('codec')}, {v.get('frames')} frames"
+                    lv["received"] = trn(
+                        "received {width}x{height} {codec}, {n} frames",
+                        "received {width}x{height} {codec}, {n} frames",
+                        v.get("frames") or 0,
+                        width=v.get("width"),
+                        height=v.get("height"),
+                        codec=v.get("codec"),
                     )
             return
         url = {"youtube": "rtmp://a.rtmp.youtube.com/live2/", "twitch": "rtmp://live.twitch.tv/app/"}.get(f["dest"])
@@ -304,7 +339,7 @@ def _go_live(app) -> None:
         try:
             await stream()
         except asyncio.CancelledError:
-            app.toast("Stream ended" + (f" · {lv.pop('received')}" if lv.get("received") else ""))
+            app.toast(tr("Stream ended") + (f" · {lv.pop('received')}" if lv.get("received") else ""))
         except Exception as e:  # noqa: BLE001
             import traceback
 

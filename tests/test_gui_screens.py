@@ -2,12 +2,14 @@
 Flet client: catches layout/API errors and checks the key texts are there."""
 
 import asyncio
+import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from quak import i18n
 from quak.core.registry import Status
 
 try:
@@ -15,7 +17,7 @@ try:
 
     from quak.gui import app as gui_app
     from quak.gui import kit, screens, theme
-    from quak.gui.screens.media import _load_media, _open_local
+    from quak.gui.screens.media import _load_media, _open_local, _play
     from quak.gui.screens.more import _diagnostics, _show_licences
 except ImportError:  # GUI extra not installed
     ft = None
@@ -146,6 +148,59 @@ class Screens(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(watching, 5)
         give_up.assert_called_once()
         self.app.preview.update(on=False, decoder=None)
+
+    async def test_every_screen_builds_in_every_language(self):
+        self.addCleanup(i18n.set_language, i18n.DEFAULT)
+        for code in i18n.LANGUAGES:
+            i18n.set_language(code)
+            for name in screens.__all__:
+                self.assertTrue(self.build(name), f"{name} in {code}")
+
+    async def test_choosing_a_language_applies_it_and_remembers_it(self):
+        self.addCleanup(i18n.set_language, i18n.DEFAULT)
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.dict("os.environ", {"QUAK_CONFIG_DIR": tmp, "QUAK_LANG": ""}),
+        ):
+            self.assertEqual(self.app.language_pref, "system")
+            self.app.set_language("de")
+            self.assertEqual(i18n.language(), "de")
+            self.assertEqual(self.app.language_pref, "de")
+            self.assertEqual(self.page.locale_configuration.current_locale.language_code, "de")
+            self.page.run_task = lambda fn, *args: None  # asking the device needs a real client
+            self.app.set_language("system")
+            self.assertEqual(self.app.language_pref, "system")
+
+    async def test_the_system_language_is_followed_until_one_is_chosen(self):
+        self.addCleanup(i18n.set_language, i18n.DEFAULT)
+        locales = [SimpleNamespace(language_code="fr", script_code=None, country_code="CA")]
+        self.page.get_device_info = mock.AsyncMock(return_value=SimpleNamespace(locales=locales))
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.dict("os.environ", {"QUAK_CONFIG_DIR": tmp, "QUAK_LANG": ""}),
+        ):
+            await self.app.follow_system_language()
+            self.assertEqual(i18n.language(), "fr")
+            self.app.set_language("de")
+            await self.app.follow_system_language()
+            self.assertEqual(i18n.language(), "de")
+
+    async def test_a_test_suite_can_pin_the_language(self):
+        self.addCleanup(i18n.set_language, i18n.DEFAULT)
+        self.page.get_device_info = mock.AsyncMock(return_value=SimpleNamespace(locales=[]))
+        with mock.patch.dict("os.environ", {"QUAK_LANG": "en"}):
+            await self.app.follow_system_language()
+            self.page.get_device_info.assert_not_called()
+
+    async def test_play_downloads_then_opens_the_clip(self):
+        """It used to crash after the download, because opening the file was called the wrong way."""
+        clip = SimpleNamespace(name="GX010001.MP4", size=4)
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / clip.name).write_bytes(b"data")
+            self.app.downloads_dir = lambda: Path(tmp)
+            with mock.patch("quak.gui.screens.media._open_local", mock.AsyncMock()) as opened:
+                await _play(self.app, clip)
+            opened.assert_awaited_once_with(self.app, Path(tmp) / clip.name)
 
     async def test_a_turbo_left_on_is_cleared_when_the_app_connects(self):
         """A connection that drops during a download leaves it on, and the camera then refuses nearly everything."""

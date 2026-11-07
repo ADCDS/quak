@@ -10,6 +10,7 @@ from quak.core import codec, proto
 from quak.core import registry as R
 from quak.core.errors import Rejected, Timeout, Unsupported
 from quak.core.registry import Action, Cmd, Feature, Query
+from quak.i18n import term, tr
 from quak.session import Session
 
 
@@ -58,19 +59,26 @@ class Camera:
         if status:
             allowed = (await self.capabilities([setting_id])).get(setting_id, [])
             if not allowed:
-                hint = " (needs Pro controls)" if setting_id in R.PRO_ONLY else ""
-                raise Unsupported(f"{name} can't be changed in the camera's current mode{hint}")
-            choices = ", ".join(R.value_label(setting_id, v) for v in allowed)
+                if setting_id in R.PRO_ONLY:
+                    raise Unsupported(
+                        tr("{name} can't be changed in the camera's current mode (needs Pro controls)", name=term(name))
+                    )
+                raise Unsupported(tr("{name} can't be changed in the camera's current mode", name=term(name)))
+            choices = ", ".join(term(R.value_label(setting_id, v)) for v in allowed)
             raise Rejected(
                 f"set {name} = {R.value_label(setting_id, value)}",
-                f"{R.TLV_STATUS.get(status, status)}; allowed now: {choices}",
+                tr("{status}; allowed now: {choices}", status=term(R.TLV_STATUS.get(status, status)), choices=choices),
             )
         if verify:
             got = await self.setting(setting_id)
             if got != value:
                 raise Rejected(
                     f"set {name}",
-                    f"read back {R.value_label(setting_id, got)}, expected {R.value_label(setting_id, value)}",
+                    tr(
+                        "read back {got}, expected {expected}",
+                        got=term(R.value_label(setting_id, got)),
+                        expected=term(R.value_label(setting_id, value)),
+                    ),
                 )
 
     # ---------------------------------------------------------------- clock
@@ -151,7 +159,7 @@ class Camera:
     def _check(r: dict, what: str) -> None:
         result = r.get("result")
         if result == proto.RESULT_NOT_SUPPORTED:
-            raise Unsupported(f"{what}: not supported by this camera")
+            raise Unsupported(tr("{what}: not supported by this camera", what=what))
         if result != proto.RESULT_SUCCESS:
             raise Rejected(what, proto.RESULT.get(result, result))
 
@@ -188,7 +196,14 @@ class Camera:
             if predicate(value):
                 return value
             if asyncio.get_running_loop().time() > deadline:
-                raise Timeout(f"{R.status_name(status_id)} stayed {value!r} for {timeout:.0f} s")
+                raise Timeout(
+                    tr(
+                        "{status} stayed {value} for {seconds} s",
+                        status=R.status_name(status_id),
+                        value=repr(value),
+                        seconds=f"{timeout:.0f}",
+                    )
+                )
             await asyncio.sleep(poll)
 
     # ---------------------------------------------------------------- camera Wi-Fi AP
@@ -218,7 +233,9 @@ class Camera:
                 if n.get("scanning_state") in (3, 4):
                     raise Rejected("Wi-Fi scan", proto.SCANNING[n["scanning_state"]])
         except asyncio.TimeoutError:
-            raise Timeout(f"the camera's Wi-Fi scan didn't finish within {timeout:.0f} s") from None
+            raise Timeout(
+                tr("the camera's Wi-Fi scan didn't finish within {seconds} s", seconds=f"{timeout:.0f}")
+            ) from None
         finally:
             self.s.unsubscribe(q)
         r = await self.s.protobuf(
@@ -265,7 +282,13 @@ class Camera:
         while state in (0, 1, 2):
             left = deadline - asyncio.get_running_loop().time()
             if left <= 0:
-                raise Timeout(f"the camera didn't finish joining {ssid!r} within {timeout:.0f} s")
+                raise Timeout(
+                    tr(
+                        "the camera didn't finish joining {ssid} within {seconds} s",
+                        ssid=repr(ssid),
+                        seconds=f"{timeout:.0f}",
+                    )
+                )
             try:
                 _, msg = await asyncio.wait_for(q.get(), left)
             except asyncio.TimeoutError:

@@ -17,15 +17,23 @@ from quak.core import registry as R
 from quak.core.registry import Status
 from quak.gui import kit
 from quak.gui import theme as th
-from quak.i18n import tr
 from quak.gui.screens.cameras import _confirm_sleep
 from quak.gui.screens.common import _camera_name, _fw, pick
+from quak.i18n import N_, term, tr
+
+LOG_KINDS = {
+    "commands": (N_("command"), N_("command reply")),
+    "settings": (N_("settings"), N_("settings reply")),
+    "keepalive": (N_("keep-alive"), N_("keep-alive reply")),
+    "queries": (N_("query"), N_("query reply")),
+    "network": (N_("network"), N_("network")),
+}
 
 
 def more(app) -> ft.Control:
     t = app.t
     tabs = kit.segmented(
-        [("camera", "Camera"), ("diagnostics", "Diagnostics")],
+        [("camera", tr("Camera")), ("diagnostics", tr("Diagnostics"))],
         app.more_tab,
         lambda v: app.go("more", more_tab=v),
         t,
@@ -34,7 +42,7 @@ def more(app) -> ft.Control:
     )
     inner = _more_camera(app) if app.more_tab == "camera" else _diagnostics(app)
     return ft.Container(
-        ft.Column([kit.page_title("More", t), tabs, ft.Container(inner, expand=True)], spacing=8, expand=True),
+        ft.Column([kit.page_title(tr("More"), t), tabs, ft.Container(inner, expand=True)], spacing=8, expand=True),
         padding=ft.Padding.only(left=16, right=16, top=16, bottom=12),
         expand=True,
     )
@@ -45,7 +53,7 @@ def _more_camera(app) -> ft.Control:
     if not st.connected:
         return ft.Column(
             [
-                kit.banner("Not connected.", t, "warn", on_click=lambda e: app.go("cameras")),
+                kit.banner(tr("Not connected."), t, "warn", on_click=lambda e: app.go("cameras")),
                 _demo_switch(app),
                 _about(app),
             ],
@@ -55,43 +63,49 @@ def _more_camera(app) -> ft.Control:
     clock = (
         "—"
         if offset is None
-        else "in sync"
+        else tr("in sync")
         if abs(offset) < 1
-        else f"{abs(offset):.0f} s {'ahead' if offset > 0 else 'behind'}"
+        else tr("{seconds} s ahead", seconds=f"{abs(offset):.0f}")
+        if offset > 0
+        else tr("{seconds} s behind", seconds=f"{abs(offset):.0f}")
     )
-    tz = f"UTC{(st.tz_minutes or 0) / 60:+g}".replace("-", "−") if st.tz_minutes is not None else ""
+    tz = (
+        tr("UTC{offset}", offset=f"{(st.tz_minutes or 0) / 60:+g}".replace("-", "−"))
+        if st.tz_minutes is not None
+        else ""
+    )
     band = st.settings.get(178)
     bands = st.caps.get(178) or [0, 1]
     never = st.settings.get(59) == 0
     rows = [
-        kit.section("This camera", t),
+        kit.section(tr("This camera"), t),
         kit.card(
             ft.Column(
                 [
-                    kit.setting_row("Name", _camera_name(app) or "—", t, chevron=False),
-                    kit.setting_row("Model", st.model, t, chevron=False),
-                    kit.setting_row("Firmware", _fw(st.firmware), t, chevron=False, last=True),
+                    kit.setting_row(tr("Name"), _camera_name(app) or "—", t, chevron=False),
+                    kit.setting_row(tr("Model"), st.model, t, chevron=False),
+                    kit.setting_row(tr("Firmware"), _fw(st.firmware), t, chevron=False, last=True),
                 ],
                 spacing=0,
             ),
             t,
             padding=0,
         ),
-        kit.section("Clock", t),
+        kit.section(tr("Clock"), t),
         kit.card(
             ft.Row(
                 [
                     ft.Column(
                         [
-                            kit.text("Camera clock", t, 15),
+                            kit.text(tr("Camera clock"), t, 15),
                             kit.text(" · ".join(x for x in (clock, tz) if x), t, 12, t.text3),
                         ],
                         spacing=2,
                         expand=True,
                     ),
                     kit.secondary(
-                        "Sync",
-                        lambda e: app.run(app.svc.sync_clock, ok="Clock synced"),
+                        tr("Sync"),
+                        lambda e: app.run(app.svc.sync_clock, ok=tr("Clock synced")),
                         t,
                         height=40,
                         text_size=15,
@@ -101,23 +115,23 @@ def _more_camera(app) -> ft.Control:
             ),
             t,
         ),
-        kit.section("Wireless", t),
+        kit.section(tr("Wireless"), t),
         kit.card(
             ft.Column(
                 [
                     kit.check_row(
-                        "Camera Wi-Fi",
+                        tr("Camera Wi-Fi"),
                         bool(st.s(Status.AP_MODE)),
                         lambda e: app.run(app.svc.set_ap, e.control.value),
                         t,
-                        sub="Turned on automatically for preview and media",
+                        sub=tr("Turned on automatically for preview and media"),
                         key="camera-ap",
                         last=False,
                     ),
                     ft.Container(
                         ft.Row(
                             [
-                                kit.text("Wi-Fi band", t, 15, expand=True),
+                                kit.text(tr("Wi-Fi band"), t, 15, expand=True),
                                 ft.Container(
                                     kit.segmented(
                                         [(str(v), _band(v)) for v in bands],
@@ -141,12 +155,12 @@ def _more_camera(app) -> ft.Control:
             t,
             padding=0,
         ),
-        kit.section("Power", t),
+        kit.section(tr("Power"), t),
         kit.card(
             ft.Column(
                 [
                     kit.setting_row(
-                        "Put camera to sleep",
+                        tr("Put camera to sleep"),
                         "",
                         t,
                         on_click=lambda e: _confirm_sleep(app),
@@ -154,8 +168,8 @@ def _more_camera(app) -> ft.Control:
                         icon=ft.Icons.BEDTIME_OUTLINED,
                     ),
                     kit.setting_row(
-                        "Auto power off",
-                        R.value_label(59, st.settings.get(59, 0)),
+                        tr("Auto power off"),
+                        term(R.value_label(59, st.settings.get(59, 0))),
                         t,
                         on_click=lambda e: pick(app, 59),
                         value_color=t.warn if never else None,
@@ -170,7 +184,7 @@ def _more_camera(app) -> ft.Control:
         ft.Row(
             [
                 kit.destructive(
-                    "Forget this camera",
+                    tr("Forget this camera"),
                     lambda e: _forget(app),
                     t,
                     outlined=True,
@@ -188,7 +202,7 @@ def _more_camera(app) -> ft.Control:
 
 
 def _band(value: int) -> str:
-    return re.sub(r"(\d)(G?Hz)\b", r"\1 \2", R.value_label(178, value))
+    return re.sub(r"(\d)(G?Hz)\b", r"\1 \2", term(R.value_label(178, value)))
 
 
 def _demo_switch(app) -> ft.Control:
@@ -196,10 +210,10 @@ def _demo_switch(app) -> ft.Control:
     appearance = ft.Container(
         ft.Row(
             [
-                kit.text("Appearance", t, 15, expand=True),
+                kit.text(tr("Appearance"), t, 15, expand=True),
                 ft.Container(
                     kit.segmented(
-                        [("dark", "Dark"), ("light", "Light"), ("system", "System")],
+                        [("dark", tr("Dark")), ("light", tr("Light")), ("system", tr("System"))],
                         app.theme_pref,
                         app.set_theme,
                         t,
@@ -227,11 +241,11 @@ def _demo_switch(app) -> ft.Control:
                     key="language",
                 ),
                 kit.check_row(
-                    "Demo mode",
+                    tr("Demo mode"),
                     app.sim,
                     lambda e: app.run(app.set_demo, e.control.value),
                     t,
-                    sub="Use a simulated camera to try Quak without one",
+                    sub=tr("Use a simulated camera to try Quak without one"),
                     key="demo",
                 ),
             ],
@@ -272,13 +286,18 @@ def _about(app) -> ft.Control:
     return ft.Column(
         [
             kit.text(
-                f"Quak {__version__} · open source, MIT. Not affiliated with GoPro, Inc. GoPro, HERO and Quik "
-                "are trademarks of GoPro, Inc.",
+                tr(
+                    "Quak {version} · open source, MIT. Not affiliated with GoPro, Inc. GoPro, HERO and Quik "
+                    "are trademarks of GoPro, Inc.",
+                    version=__version__,
+                ),
                 app.t,
                 12,
                 app.t.text3,
             ),
-            ft.TextButton("Licences", on_click=lambda e: _show_licences(app), style=ft.ButtonStyle(color=app.t.accent)),
+            ft.TextButton(
+                tr("Licences"), on_click=lambda e: _show_licences(app), style=ft.ButtonStyle(color=app.t.accent)
+            ),
         ],
         spacing=2,
         horizontal_alignment=ft.CrossAxisAlignment.START,
@@ -301,9 +320,9 @@ def _show_licences(app) -> None:
             ),
         ]
     app.dialog(
-        "Licences",
+        tr("Licences"),
         ft.Container(ft.Column(body, scroll=ft.ScrollMode.AUTO, spacing=12), width=560, height=480),
-        [ft.TextButton("Close", on_click=lambda e: app.close_dialog())],
+        [ft.TextButton(tr("Close"), on_click=lambda e: app.close_dialog())],
     )
 
 
@@ -322,13 +341,15 @@ def _forget(app) -> None:
         app.run(forget)
 
     app.dialog(
-        "Forget this camera?",
+        tr("Forget this camera?"),
         ft.Text(
-            "Quak disconnects and won't reconnect automatically. To remove the bond "
-            "completely, also remove this device on the camera.",
+            tr(
+                "Quak disconnects and won't reconnect automatically. To remove the bond "
+                "completely, also remove this device on the camera."
+            ),
             color=t.text2,
         ),
-        [ft.TextButton("Cancel", on_click=lambda e: app.close_dialog()), ft.TextButton("Forget", on_click=yes)],
+        [ft.TextButton(tr("Cancel"), on_click=lambda e: app.close_dialog()), ft.TextButton(tr("Forget"), on_click=yes)],
     )
 
 
@@ -337,7 +358,7 @@ def _diagnostics(app) -> ft.Control:
     # the self-test records clips, changes settings and takes the Wi-Fi adapter for half an hour: not one click away
     self_test = app.sim or config.developer_mode()
     tabs = kit.underline_tabs(
-        [("log", "Log")] + ([("selftest", "Self-test")] if self_test else []),
+        [("log", tr("Log"))] + ([("selftest", tr("Self-test"))] if self_test else []),
         d["tab"],
         lambda v: (d.update(tab=v), app.render()),
         t,
@@ -348,16 +369,21 @@ def _diagnostics(app) -> ft.Control:
         filters = ft.Row(
             [
                 kit.filter_chip(
-                    c.capitalize(),
+                    caption,
                     t,
                     selected=d["filter"] == c,
                     on_click=lambda e, c=c: (d.update(filter=c), app.render()),
                 )
-                for c in ("all", "commands", "settings", "queries")
+                for c, caption in (
+                    ("all", tr("All")),
+                    ("commands", tr("Commands")),
+                    ("settings", tr("Settings")),
+                    ("queries", tr("Queries")),
+                )
             ]
             + [
                 kit.filter_chip(
-                    "Hide keep-alive",
+                    tr("Hide keep-alive"),
                     t,
                     selected=hide,
                     on_click=lambda e: (d.update(hide_keepalive=not hide), app.render()),
@@ -383,7 +409,7 @@ def _diagnostics(app) -> ft.Control:
                 ft.Row(
                     [
                         kit.secondary(
-                            "Resume" if d["paused"] else "Pause",
+                            tr("Resume") if d["paused"] else tr("Pause"),
                             lambda e: (d.update(paused=not d["paused"]), app.render()),
                             t,
                             expand=True,
@@ -392,7 +418,13 @@ def _diagnostics(app) -> ft.Control:
                             radius=12,
                         ),
                         kit.secondary(
-                            "Export log", lambda e: _export_log(app), t, expand=True, height=46, text_size=14, radius=12
+                            tr("Export log"),
+                            lambda e: _export_log(app),
+                            t,
+                            expand=True,
+                            height=46,
+                            text_size=14,
+                            radius=12,
                         ),
                     ],
                     spacing=10,
@@ -409,12 +441,12 @@ def _diagnostics(app) -> ft.Control:
         for sc in runner.SCENARIOS
     ]
     look = {
-        "pass": (t.ok_tint, t.ok, "Passed"),
-        "fail": (t.danger_tint, t.danger_text, "Failed"),
-        "skip": (t.surface2, t.text2, "Skipped"),
-        "running": (t.accent_tint, t.accent_ink, "Running"),
-        "todo": (t.surface2, t.text2, "Not run"),
-        "human": (t.warn_tint, t.warn_text, "Needs you"),
+        "pass": (t.ok_tint, t.ok, tr("Passed")),
+        "fail": (t.danger_tint, t.danger_text, tr("Failed")),
+        "skip": (t.surface2, t.text2, tr("Skipped")),
+        "running": (t.accent_tint, t.accent_ink, tr("Running")),
+        "todo": (t.surface2, t.text2, tr("Not run")),
+        "human": (t.warn_tint, t.warn_text, tr("Needs you")),
     }
     rows = [
         ft.Container(
@@ -432,14 +464,15 @@ def _diagnostics(app) -> ft.Control:
         for r in results
     ]
     running = d["e2e"] is not None and d["e2e"].returncode is None
+    before, after = tr(
+        "Runs the same checks as {command} against the connected camera, for about 30 minutes. Settings are restored "
+        "afterwards, and only clips the test records are deleted."
+    ).split("{command}")
     intro = ft.Text(
         spans=[
-            ft.TextSpan("Runs the same checks as "),
+            ft.TextSpan(before),
             ft.TextSpan("python -m quak.e2e", style=ft.TextStyle(font_family=th.MONO_FONT, size=13, color=t.soft_text)),
-            ft.TextSpan(
-                " against the connected camera, for about 30 minutes. Settings are restored "
-                "afterwards, and only clips the test records are deleted."
-            ),
+            ft.TextSpan(after),
         ],
         size=14,
         color=t.text2,
@@ -452,13 +485,13 @@ def _diagnostics(app) -> ft.Control:
             ft.Row(
                 [
                     kit.secondary(
-                        "Stop" if running else "Run self-test",
+                        tr("Stop") if running else tr("Run self-test"),
                         lambda e: _stop_selftest(app) if running else app.run(_selftest, app),
                         t,
                         expand=True,
                         text_size=15,
                     ),
-                    kit.secondary("Export results", lambda e: _export_results(app), t, expand=True, text_size=15),
+                    kit.secondary(tr("Export results"), lambda e: _export_results(app), t, expand=True, text_size=15),
                 ],
                 spacing=10,
             ),
@@ -493,7 +526,7 @@ def log_rows(app) -> list[ft.Control]:
                             t.text3,
                         ),
                         kit.mono(
-                            "sent" if l.direction == "tx" else "received",
+                            tr("sent") if l.direction == "tx" else tr("received"),
                             t,
                             11,
                             t.accent if l.direction == "tx" else t.ok,
@@ -513,14 +546,8 @@ def log_rows(app) -> list[ft.Control]:
 
 def _kind(line) -> str:
     """What the log calls a message: the design's 'settings', 'query reply', ..."""
-    base = {
-        "commands": "command",
-        "settings": "settings",
-        "keepalive": "keep-alive",
-        "queries": "query",
-        "network": "network",
-    }.get(line.category, line.channel)
-    return base + (" reply" if line.direction == "rx" and line.category != "network" else "")
+    plain, reply = LOG_KINDS.get(line.category, (line.channel, tr("{channel} reply", channel=line.channel)))
+    return term(reply if line.direction == "rx" else plain)
 
 
 def _export_log(app) -> None:
@@ -531,14 +558,14 @@ def _export_log(app) -> None:
             for l in app.svc.log
         )
     )
-    app.toast(f"Saved {path}")
+    app.toast(tr("Saved {path}", path=path))
 
 
 def _export_results(app) -> None:
     results = app.diag.get("results", [])
     path = app.downloads_dir() / f"quak-selftest-{time.strftime('%Y%m%d-%H%M%S')}.jsonl"
     path.write_text("\n".join(json.dumps(r) for r in results))
-    app.toast(f"Saved {path}")
+    app.toast(tr("Saved {path}", path=path))
 
 
 async def _selftest(app) -> None:

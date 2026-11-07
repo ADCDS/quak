@@ -17,6 +17,7 @@ from typing import AsyncIterator, Callable
 
 from quak import config
 from quak.core.errors import NetworkError
+from quak.i18n import tr
 from quak.net.nmcli import HOTSPOT_PROFILE, NetworkManager
 
 
@@ -52,7 +53,7 @@ async def lab_hotspot(
     nm = nm or NetworkManager()
     ssid, password = lab_credentials()
     if ssid in await asyncio.to_thread(nm.saved_wifi_ssids):
-        raise NetworkError(f"refusing to use {ssid!r}: a saved network has that name")
+        raise NetworkError(tr("refusing to use {ssid}: a saved network has that name", ssid=repr(ssid)))
     device = await asyncio.to_thread(nm.pick_device, True)
     previous = device.connection if device.state.startswith("connected") and device.connection else None
     route_before = await asyncio.to_thread(nm.default_route_device)
@@ -64,7 +65,7 @@ async def lab_hotspot(
         await asyncio.to_thread(nm.hotspot_up, device.name, ssid, password, band)
         gateway = await asyncio.to_thread(nm.ipv4, device.name)
         if not gateway:
-            raise NetworkError("hotspot came up without an IPv4 address")
+            raise NetworkError(tr("hotspot came up without an IPv4 address"))
         yield Hotspot(ssid, password, gateway, device.name)
     finally:
         await asyncio.to_thread(nm.down, HOTSPOT_PROFILE)

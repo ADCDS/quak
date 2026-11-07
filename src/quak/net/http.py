@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from quak.core.errors import NetworkError, Rejected
+from quak.i18n import tr, trn
 
 CAMERA_AP_URL = "http://10.5.5.9:8080"
 PREVIEW_PORT = 8554
@@ -84,7 +85,7 @@ class CameraHttp:
             r = conn.getresponse()
             body = r.read()
         except (OSError, http.client.HTTPException) as e:
-            raise NetworkError(f"camera HTTP {url}: {e}") from None
+            raise NetworkError(tr("camera HTTP {url}: {error}", url=url, error=e)) from None
         finally:
             conn.close()
         if r.status != 200:
@@ -96,7 +97,7 @@ class CameraHttp:
         try:
             return json.loads(body) if body.strip() else {}
         except ValueError:
-            raise NetworkError(f"camera HTTP {path}: not JSON: {body[:120]!r}") from None
+            raise NetworkError(tr("camera HTTP {path}: not JSON: {body}", path=path, body=repr(body[:120]))) from None
 
     def reachable(self, timeout: float = 2.0) -> bool:
         try:
@@ -176,10 +177,18 @@ class CameraHttp:
                     if progress:
                         progress(done, total)
             if total and done != total:
-                raise NetworkError(f"download {path}: the connection ended after {done} of {total} bytes")
+                raise NetworkError(
+                    trn(
+                        "download {path}: the connection ended after {done} of {n} byte",
+                        "download {path}: the connection ended after {done} of {n} bytes",
+                        total,
+                        path=path,
+                        done=done,
+                    )
+                )
             tmp.replace(dest)
         except (OSError, http.client.HTTPException) as e:
-            raise NetworkError(f"download {path}: {e}") from None
+            raise NetworkError(tr("download {path}: {error}", path=path, error=e)) from None
         finally:
             conn.close()
             with contextlib.suppress(OSError):

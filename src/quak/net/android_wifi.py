@@ -10,6 +10,7 @@ from __future__ import annotations
 import contextlib
 
 from quak.core.errors import NetworkError
+from quak.i18n import tr
 from quak.net.netsh import WifiDevice
 from quak.net.profiles import CAMERA_PROFILE
 
@@ -22,16 +23,16 @@ class AndroidJoiner:
 
     async def pick_device(self, need_ap: bool = False) -> WifiDevice:
         if need_ap:
-            raise NetworkError("the lab hotspot isn't available on a phone")
+            raise NetworkError(tr("the lab hotspot isn't available on a phone"))
         return WifiDevice("wifi", "app-scoped", "")
 
     async def join(self, device: str, ssid: str, password: str, name: str = CAMERA_PROFILE, timeout: int = 120) -> None:
         r = await self.wifi.join(ssid, password, timeout)
         if not r.get("joined"):
-            raise NetworkError("the phone didn't join the camera's Wi-Fi (was the Connect prompt declined?)")
+            raise NetworkError(tr("the phone didn't join the camera's Wi-Fi (was the Connect prompt declined?)"))
         if not r.get("bound"):
             await self.down(name)
-            raise NetworkError("joined the camera's Wi-Fi but couldn't send the app's traffic over it")
+            raise NetworkError(tr("joined the camera's Wi-Fi but couldn't send the app's traffic over it"))
 
     async def down(self, name: str) -> None:
         with contextlib.suppress(Exception):

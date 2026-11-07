@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Callable
 
 from quak.core.errors import NetworkError
+from quak.i18n import tr
 from quak.net.profiles import CAMERA_PROFILE, HOTSPOT_PROFILE
 
 Runner = Callable[[list[str]], str]
@@ -30,7 +31,13 @@ def run_command(args: list[str], timeout: float = 60) -> str:
     except (OSError, subprocess.TimeoutExpired) as e:
         raise NetworkError(f"{args[0]}: {e}") from None
     if p.returncode:
-        raise NetworkError(f"{' '.join(_redact(args))} failed: {p.stderr.strip() or p.stdout.strip()}")
+        raise NetworkError(
+            tr(
+                "{command} failed: {output}",
+                command=" ".join(_redact(args)),
+                output=p.stderr.strip() or p.stdout.strip(),
+            )
+        )
     return p.stdout
 
 
@@ -122,13 +129,21 @@ class NetworkManager:
         """The adapter named by QUAK_WIFI_ADAPTER, else one this computer isn't using for its network."""
         devices = [d for d in self.wifi_devices() if d.ap_mode or not need_ap]
         if not devices:
-            raise NetworkError("no Wi-Fi adapter" + (" with access-point mode" if need_ap else "") + " found")
+            raise NetworkError(
+                tr("no Wi-Fi adapter with access-point mode found") if need_ap else tr("no Wi-Fi adapter found")
+            )
         wanted = os.environ.get("QUAK_WIFI_ADAPTER")
         if wanted:
             for d in devices:
                 if d.name == wanted:
                     return d
-            raise NetworkError(f"Wi-Fi adapter {wanted} not found (found: {', '.join(d.name for d in devices)})")
+            raise NetworkError(
+                tr(
+                    "Wi-Fi adapter {adapter} not found (found: {found})",
+                    adapter=wanted,
+                    found=", ".join(d.name for d in devices),
+                )
+            )
         main = self.default_route_device()
         return next((d for d in devices if d.name != main), devices[0])
 

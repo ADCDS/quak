@@ -10,6 +10,7 @@ from typing import Callable
 
 from quak.core import codec
 from quak.core.errors import NOT_BONDED_HINT, Disconnected, NotBonded, NotFound
+from quak.i18n import term, tr
 
 try:
     from quak_native import QuakBle
@@ -46,11 +47,11 @@ class AndroidLink:
         self.log(f"bluetooth: {state}")
         seen = {d["address"].upper(): d for d in await scan_gopros(self.ble, 8)}
         if self.address not in seen:
-            raise NotFound(f"camera {self.address} not seen (is it on and nearby?)")
+            raise NotFound(tr("camera {address} not seen (is it on and nearby?)", address=self.address))
         advert = seen[self.address]["advert"]
         paired = bool(await self.ble.is_paired(self.address))
         if not paired and not (advert and advert.pairing_mode):
-            raise NotBonded(NOT_BONDED_HINT)
+            raise NotBonded(term(NOT_BONDED_HINT))
         info = await self.ble.connect(self.address)
         self.log(f"connected, MTU {info.get('mtu')}")
         self._connected = True
@@ -77,7 +78,7 @@ class AndroidLink:
 
     async def write(self, uuid: str, data: bytes) -> None:
         if not self._connected:
-            raise Disconnected("not connected")
+            raise Disconnected(tr("not connected"))
         await self.ble.write(uuid, data.hex())
 
     async def read(self, uuid: str) -> bytes:

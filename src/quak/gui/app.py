@@ -23,28 +23,31 @@ from quak.core.errors import AdapterInUse, QuakError
 from quak.core.registry import Status
 from quak.gui import kit
 from quak.gui import theme as th
+from quak.i18n import N_, term, tr
 from quak.net.wifi import recover_network
 from quak.service import CameraService
 
 TABS = [
-    ("cameras", "Cameras", ft.Icons.PHOTO_CAMERA_OUTLINED),
-    ("remote", "Remote", ft.Icons.RADIO_BUTTON_CHECKED),
-    ("media", "Media", ft.Icons.GRID_VIEW),
-    ("live", "Live", ft.Icons.SENSORS),
-    ("more", "More", ft.Icons.MORE_HORIZ),
+    ("cameras", N_("Cameras"), ft.Icons.PHOTO_CAMERA_OUTLINED),
+    ("remote", N_("Remote"), ft.Icons.RADIO_BUTTON_CHECKED),
+    ("media", N_("Media"), ft.Icons.GRID_VIEW),
+    ("live", N_("Live"), ft.Icons.SENSORS),
+    ("more", N_("More"), ft.Icons.MORE_HORIZ),
 ]
 SUBSCREEN_TAB = {"add_camera": "cameras", "schedule": "cameras", "settings": "remote"}
 # desktop rail, as in the design: Diagnostics has its own item; More (camera settings, about) sits at the bottom
 RAIL = [
-    ("cameras", "Cameras", ft.Icons.PHOTO_CAMERA_OUTLINED, {}),
-    ("remote", "Remote", ft.Icons.RADIO_BUTTON_CHECKED, {}),
-    ("media", "Media", ft.Icons.GRID_VIEW, {}),
-    ("live", "Live", ft.Icons.SENSORS, {}),
-    ("more", "Diagnostics", ft.Icons.TERMINAL, {"more_tab": "diagnostics"}),
+    ("cameras", N_("Cameras"), ft.Icons.PHOTO_CAMERA_OUTLINED, {}),
+    ("remote", N_("Remote"), ft.Icons.RADIO_BUTTON_CHECKED, {}),
+    ("media", N_("Media"), ft.Icons.GRID_VIEW, {}),
+    ("live", N_("Live"), ft.Icons.SENSORS, {}),
+    ("more", N_("Diagnostics"), ft.Icons.TERMINAL, {"more_tab": "diagnostics"}),
 ]
-RAIL_BOTTOM = ("more", "More", ft.Icons.MORE_HORIZ, {"more_tab": "camera"})
-PREVIEW_FAILED = "The camera didn't start its preview. Try again in a moment."
-NO_PICTURE = "No picture came from the camera. Try again. If it keeps happening, check that a firewall isn't blocking UDP port 8554."
+RAIL_BOTTOM = ("more", N_("More"), ft.Icons.MORE_HORIZ, {"more_tab": "camera"})
+PREVIEW_FAILED = N_("The camera didn't start its preview. Try again in a moment.")
+NO_PICTURE = N_(
+    "No picture came from the camera. Try again. If it keeps happening, check that a firewall isn't blocking UDP port 8554."
+)
 PICTURE_WAIT_SECONDS = 30
 PICTURE_CHECK_SECONDS = 1
 WIFI_IDLE_SECONDS = 60
@@ -231,13 +234,19 @@ class App:
             retry()
 
         self.dialog(
-            f"Use {device} for the camera?",
+            tr("Use {device} for the camera?", device=device),
             ft.Text(
-                f"This computer is online through {device}. Joining the camera's Wi-Fi disconnects it until "
-                "about a minute after you leave Media or stop the preview.",
+                tr(
+                    "This computer is online through {device}. Joining the camera's Wi-Fi disconnects it until "
+                    "about a minute after you leave Media or stop the preview.",
+                    device=device,
+                ),
                 color=self.t.text2,
             ),
-            [ft.TextButton("Cancel", on_click=lambda e: self.close_dialog()), ft.TextButton("Use it", on_click=yes)],
+            [
+                ft.TextButton(tr("Cancel"), on_click=lambda e: self.close_dialog()),
+                ft.TextButton(tr("Use it"), on_click=yes),
+            ],
         )
 
     def toast(self, message: str, error: bool = False, duration: int = 4000) -> None:
@@ -402,7 +411,7 @@ class App:
                     ft.NavigationBarDestination(
                         icon=ft.Icon(icon, color=t.text2, size=22),
                         selected_icon=ft.Icon(icon, color=t.nav_selected, size=22),
-                        label=name,
+                        label=term(name),
                     )
                     for _, name, icon in TABS
                 ],
@@ -422,7 +431,7 @@ class App:
                 [
                     ft.Icon(icon, color=t.nav_selected if on else t.text2, size=22),
                     ft.Text(
-                        name,
+                        term(name),
                         size=12,
                         color=t.nav_selected if on else t.text2,
                         no_wrap=True,
@@ -439,7 +448,7 @@ class App:
             bgcolor=t.accent_tint if on else None,
             on_click=lambda e: self.go(screen, **kw),
             ink=True,
-            tooltip=name,
+            tooltip=term(name),
         )
 
     def on_key(self, e) -> None:
@@ -449,7 +458,7 @@ class App:
         if e.key == " ":
             self.run(self.svc.shutter, not self.svc.state.recording)
         elif e.key.upper() == "H":
-            self.run(self.svc.hilight, ok="HiLight tagged")
+            self.run(self.svc.hilight, ok=tr("HiLight tagged"))
 
     # ---------------------------------------------------------------- shared actions
 
@@ -483,7 +492,7 @@ class App:
         decoder = FrameDecoder(port, frame, on_failed=lambda: self.run(self._no_picture))
         if not decoder.available():  # phones: no ffmpeg, so the video player (media_kit) plays the stream itself
             if not _video_player_available():
-                self.preview.update(on=False, error="ffmpeg is needed to show the preview in this build")
+                self.preview.update(on=False, error=N_("ffmpeg is needed to show the preview in this build"))
                 return
             # media_kit on the phone never opened udp:// itself: relay the stream to it over local HTTP
             from quak.net.stream import UdpHttpRelay

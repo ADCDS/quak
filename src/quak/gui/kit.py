@@ -8,6 +8,7 @@ import flet as ft
 
 from quak.gui import theme as th
 from quak.gui.theme import Tokens
+from quak.i18n import tr
 
 Handler = Callable | None
 
@@ -20,7 +21,9 @@ def title(value: str, t: Tokens, size: int = th.DISPLAY, color: str | None = Non
     """Headings: Space Grotesk where it has the letters, like the design (which tightens the big ones by 0.02 em)."""
     if 24 <= size <= 30 and "style" not in kw:
         kw["style"] = ft.TextStyle(letter_spacing=size * -0.02)
-    return ft.Text(value, size=size, weight=ft.FontWeight.W_600, color=color or t.text, font_family=th.head_font(), **kw)
+    return ft.Text(
+        value, size=size, weight=ft.FontWeight.W_600, color=color or t.text, font_family=th.head_font(), **kw
+    )
 
 
 def page_title(value: str, t: Tokens) -> ft.Control:
@@ -400,7 +403,7 @@ def shutter(recording: bool, on_click: Handler, t: Tokens, disabled: bool = Fals
         alignment=ft.Alignment.CENTER,
         on_click=None if disabled else on_click,
         ink=True,
-        tooltip="Stop recording" if recording else "Start recording",
+        tooltip=tr("Stop recording") if recording else tr("Start recording"),
         key="shutter",
     )
 

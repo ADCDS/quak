@@ -11,17 +11,22 @@ from pathlib import Path
 
 import flet as ft
 
+from quak import i18n
 from quak.core.registry import Status
 from quak.gui import kit
 from quak.gui import theme as th
 from quak.gui.screens.common import _scroll, _size
+from quak.i18n import tr, trn
 
 
 def media(app) -> ft.Control:
     t, st, m = app.t, app.svc.state, app.media
     if not st.connected:
         return _scroll(
-            [kit.title("Media", t), kit.banner("Not connected.", t, "warn", on_click=lambda e: app.go("cameras"))]
+            [
+                kit.title(tr("Media"), t),
+                kit.banner(tr("Not connected."), t, "warn", on_click=lambda e: app.go("cameras")),
+            ]
         )
     m.setdefault("source", "camera")
     if not m["loading"] and not m["error"] and (m.get("unfinished") or (not m["files"] and not m.get("loaded"))):
@@ -38,7 +43,7 @@ def media(app) -> ft.Control:
         or (flt == "photos" and not f.is_video)
         or (flt == "hilights" and hilights.get(f.path))
     ]
-    summary = f"{len(files)} item{'s' if len(files) != 1 else ''} · {_size(sum(f.size for f in files))}"
+    summary = trn("{n} item · {size}", "{n} items · {size}", len(files), size=_size(sum(f.size for f in files)))
     turbo = bool(st.s(Status.TURBO))
     filters = [
         kit.filter_chip(
@@ -48,15 +53,20 @@ def media(app) -> ft.Control:
             on_click=lambda e, k=key: (m.update(filter=k), app.render()),
             key=f"filter-{key}",
         )
-        for key, caption in (("all", "All"), ("videos", "Videos"), ("photos", "Photos"), ("hilights", "HiLights"))
+        for key, caption in (
+            ("all", tr("All")),
+            ("videos", tr("Videos")),
+            ("photos", tr("Photos")),
+            ("hilights", tr("HiLights")),
+        )
     ]
     if app.wide:
         return _media_desktop(app, shown, summary, turbo, filters)
     head = ft.Row(
         [
-            kit.page_title("Media", t),
+            kit.page_title(tr("Media"), t),
             ft.TextButton(
-                "Cancel" if m["selecting"] else "Select",
+                tr("Cancel") if m["selecting"] else tr("Select"),
                 on_click=lambda e: _toggle_select(app),
                 style=ft.ButtonStyle(color=t.accent),
             ),
@@ -64,7 +74,7 @@ def media(app) -> ft.Control:
         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
     )
     source = kit.segmented(
-        [("camera", "On camera"), ("device", "On this device")],
+        [("camera", tr("On camera")), ("device", tr("On this device"))],
         m["source"],
         lambda v: (m.update(source=v), app.render()),
         t,
@@ -81,7 +91,7 @@ def media(app) -> ft.Control:
         [
             ft.Container(width=7, height=7, border_radius=4, bgcolor=t.ok if st.http else t.muted),
             kit.text(
-                ("Camera Wi-Fi connected" if st.http else "Connecting to the camera's Wi-Fi…")
+                (tr("Camera Wi-Fi connected") if st.http else tr("Connecting to the camera's Wi-Fi…"))
                 + (f" · {summary}" if files else ""),
                 t,
                 13,
@@ -89,14 +99,14 @@ def media(app) -> ft.Control:
                 expand=True,
             ),
             ft.Container(
-                ft.Text("Turbo on" if turbo else "Turbo off", size=12, color=t.soft_text),
+                ft.Text(tr("Turbo on") if turbo else tr("Turbo off"), size=12, color=t.soft_text),
                 height=24,
                 border_radius=12,
                 bgcolor=t.surface2,
                 padding=ft.Padding.symmetric(horizontal=8),
                 alignment=ft.Alignment.CENTER,
                 on_click=lambda e: app.run(_load_media, app, redraw=False),
-                tooltip="Refresh",
+                tooltip=tr("Refresh"),
             ),
         ],
         spacing=8,
@@ -110,7 +120,7 @@ def media(app) -> ft.Control:
     if m["loading"] and not files:
         grid.append(ft.Row([ft.ProgressRing(color=t.accent, width=28, height=28)]))
     elif not files:
-        grid.append(kit.text("No media on the card.", t, 15, t.text2))
+        grid.append(kit.text(tr("No media on the card."), t, 15, t.text2))
     for title, group in _sections(shown):
         grid += [
             ft.Container(
@@ -135,12 +145,17 @@ def _media_desktop(app, shown, summary: str, turbo: bool, filters) -> ft.Control
     t, st, m = app.t, app.svc.state, app.media
     files = m["files"]
     over = (
-        "over the camera's Wi-Fi" + (", turbo on" if turbo else "") if st.http else "connecting to the camera's Wi-Fi…"
+        (tr("over the camera's Wi-Fi, turbo on") if turbo else tr("over the camera's Wi-Fi"))
+        if st.http
+        else tr("connecting to the camera's Wi-Fi…")
     )
     header = ft.Row(
         [
             ft.Column(
-                [kit.title("Camera media", t, 24), kit.text(f"{summary} · {over}" if files else over, t, 14, t.text2)],
+                [
+                    kit.title(tr("Camera media"), t, 24),
+                    kit.text(f"{summary} · {over}" if files else over, t, 14, t.text2),
+                ],
                 spacing=2,
                 expand=True,
             ),
@@ -148,7 +163,7 @@ def _media_desktop(app, shown, summary: str, turbo: bool, filters) -> ft.Control
                 filters
                 + [
                     ft.TextButton(
-                        "Cancel" if m["selecting"] else "Select",
+                        tr("Cancel") if m["selecting"] else tr("Select"),
                         on_click=lambda e: _toggle_select(app),
                         style=ft.ButtonStyle(color=t.accent),
                     )
@@ -167,7 +182,7 @@ def _media_desktop(app, shown, summary: str, turbo: bool, filters) -> ft.Control
     if m["loading"] and not files:
         grid.append(ft.Row([ft.ProgressRing(color=t.accent, width=28, height=28)]))
     elif not files:
-        grid.append(kit.text("No media on the card.", t, 15, t.text2))
+        grid.append(kit.text(tr("No media on the card."), t, 15, t.text2))
     for title, group in _sections(shown):
         grid += [
             ft.Text(title, size=13, weight=ft.FontWeight.W_600, color=t.text2),
@@ -194,7 +209,13 @@ def _sections(files) -> list[tuple[str, list]]:
     out: dict[str, list] = {}
     for f in files:
         day = dt.datetime.fromtimestamp(f.created, dt.timezone.utc).date()
-        title = "Today" if day == today else "Yesterday" if day == today - dt.timedelta(days=1) else f"{day:%a %d %b}"
+        title = (
+            tr("Today")
+            if day == today
+            else tr("Yesterday")
+            if day == today - dt.timedelta(days=1)
+            else i18n.weekday_day_month(day)
+        )
         out.setdefault(title, []).append(f)
     return list(out.items())
 
@@ -207,9 +228,9 @@ def _media_bottom(app, files) -> list[ft.Control]:
             kit.card(
                 ft.Column(
                     [
-                        kit.text(f"Downloading {name}", t, 15, weight=ft.FontWeight.W_600),
+                        kit.text(tr("Downloading {name}", name=name), t, 15, weight=ft.FontWeight.W_600),
                         ft.ProgressBar(value=done / total if total else None, color=t.accent, bgcolor=t.ground),
-                        kit.text(f"{_size(done)} of {_size(total)}", t, 13, t.text2),
+                        kit.text(tr("{done} of {total}", done=_size(done), total=_size(total)), t, 13, t.text2),
                     ],
                     spacing=8,
                 ),
@@ -224,18 +245,23 @@ def _media_bottom(app, files) -> list[ft.Control]:
                 ft.Row(
                     [
                         kit.text(
-                            f"{len(sel)} selected · {_size(sum(f.size for f in sel))}",
+                            trn(
+                                "{n} selected · {size}",
+                                "{n} selected · {size}",
+                                len(sel),
+                                size=_size(sum(f.size for f in sel)),
+                            ),
                             t,
                             15,
                             weight=ft.FontWeight.W_600,
                             expand=True,
                         ),
                         kit.primary(
-                            "Download", lambda e: app.run(_download, app, sel), t, height=44, icon=ft.Icons.DOWNLOAD
+                            tr("Download"), lambda e: app.run(_download, app, sel), t, height=44, icon=ft.Icons.DOWNLOAD
                         ),
                         kit.icon_button(
                             ft.Icons.DELETE_OUTLINE,
-                            "Delete from camera",
+                            tr("Delete from camera"),
                             lambda e: _confirm_delete(app, sel),
                             t,
                             bgcolor=t.danger_tint,
@@ -261,8 +287,12 @@ def _device_files(app) -> ft.Control:
     )
     if not files:
         phone = app.page.platform in (ft.PagePlatform.ANDROID, ft.PagePlatform.IOS)
-        where = "They stay inside Quak until you tap one to share or save it." if phone else f"Downloads go to {d}."
-        return kit.text(f"Nothing downloaded yet. {where}", t, 15, t.text2)
+        message = (
+            tr("Nothing downloaded yet. They stay inside Quak until you tap one to share or save it.")
+            if phone
+            else tr("Nothing downloaded yet. Downloads go to {folder}.", folder=d)
+        )
+        return kit.text(message, t, 15, t.text2)
     thumbs = {path.rsplit("/", 1)[-1]: data for path, data in m["thumbs"].items() if data}
     tw = ((app.page.width or 412) - 32 - 12) / 3
     tiles = []
@@ -343,7 +373,7 @@ async def _load_media(app) -> None:
                     m["thumbs"][f.path] = b""
                 _refresh_tile(app, f)
     except Exception as e:
-        m.update(error=f"Couldn't read the card: {e}", loading=False)
+        m.update(error=tr("Couldn't read the card: {error}", error=e), loading=False)
         show(app.render)
         raise
 
@@ -384,7 +414,10 @@ def _tile_layers(app, f, width: float, height: float) -> list[ft.Control]:
             [
                 ft.Icon(ft.Icons.PLAY_ARROW, color=t.text, size=12),
                 ft.Text(
-                    f"{dur // 60}:{dur % 60:02d}" if dur else "Video", size=12, color=t.text, weight=ft.FontWeight.W_500
+                    f"{dur // 60}:{dur % 60:02d}" if dur else tr("Video"),
+                    size=12,
+                    color=t.text,
+                    weight=ft.FontWeight.W_500,
                 ),
             ],
             spacing=3,
@@ -412,7 +445,7 @@ def _tile_layers(app, f, width: float, height: float) -> list[ft.Control]:
                 alignment=ft.Alignment.CENTER,
                 right=6,
                 bottom=6,
-                tooltip="Has HiLights",
+                tooltip=tr("Has HiLights"),
             )
         )
     if m["selecting"]:
@@ -466,14 +499,14 @@ def _detail(app, f) -> ft.Control:
     thumb = m["thumbs"].get(f.path)
     info = m.get("info", {}).get(f.path) or {}
     created = dt.datetime.fromtimestamp(f.created, dt.timezone.utc)
-    day = "Today" if created.date() == dt.date.today() else f"{created:%d %b}"
+    day = tr("Today") if created.date() == dt.date.today() else i18n.day_month(created)
     dur = int(info.get("dur", 0) or 0)
     hl = m.get("hilights", {}).get(f.path, 0)
     meta = (
         [f"{day} {created:%H:%M}"]
         + ([f"{dur // 60}:{dur % 60:02d}"] if f.is_video and dur else [])
         + [_size(f.size)]
-        + ([f"{hl} HiLight{'s' if hl != 1 else ''}"] if hl else [])
+        + ([trn("{n} HiLight", "{n} HiLights", hl)] if hl else [])
     )
     layers = [
         ft.Container(
@@ -497,7 +530,7 @@ def _detail(app, f) -> ft.Control:
                     alignment=ft.Alignment.CENTER,
                     on_click=lambda e: app.run(_play, app, f),
                     ink=True,
-                    tooltip="Play",
+                    tooltip=tr("Play"),
                 ),
                 alignment=ft.Alignment.CENTER,
                 left=0,
@@ -511,17 +544,17 @@ def _detail(app, f) -> ft.Control:
     if w and h:
         rows.append(
             (
-                "Resolution",
+                tr("Resolution"),
                 _resolution(int(w), int(h))
                 + (
-                    f" · {round(int(info['fps']) / max(1, int(info.get('fps_denom', 1) or 1)))} fps"
+                    " · " + tr("{fps} fps", fps=round(int(info["fps"]) / max(1, int(info.get("fps_denom", 1) or 1))))
                     if info.get("fps")
                     else ""
                 ),
             )
         )
-    rows.append(("Size", _size(f.size)))
-    rows.append(("File", f.path.split("/")[0]))
+    rows.append((tr("Size"), _size(f.size)))
+    rows.append((tr("File"), f.path.split("/")[0]))
     table = kit.card(
         ft.Column(
             [kit.table_row(a, b, t, last=i == len(rows) - 1, value_width=110) for i, (a, b) in enumerate(rows)],
@@ -543,7 +576,7 @@ def _detail(app, f) -> ft.Control:
             ft.Row(
                 [
                     kit.primary(
-                        "Download",
+                        tr("Download"),
                         lambda e: (app.close_all_dialogs(), app.run(_download, app, [f])),
                         t,
                         expand=True,
@@ -552,7 +585,7 @@ def _detail(app, f) -> ft.Control:
                         text_size=14,
                         radius=12,
                     ),
-                    _button_danger(app, "Delete", lambda e: _confirm_delete(app, [f])),
+                    _button_danger(app, tr("Delete"), lambda e: _confirm_delete(app, [f])),
                 ],
                 spacing=10,
             ),
@@ -590,14 +623,14 @@ async def _play(app, f) -> None:
     dest = app.downloads_dir() / f.name
     if not dest.exists() or dest.stat().st_size != f.size:
         await _download(app, [f])
-    _open_local(dest)
+    await _open_local(app, dest)
 
 
 def _detail_dialog(app, f) -> None:
     app.dialog(
         f.name,
         ft.Container(_detail(app, f), width=360),
-        [ft.TextButton("Close", on_click=lambda e: app.close_dialog())],
+        [ft.TextButton(tr("Close"), on_click=lambda e: app.close_dialog())],
     )
 
 
@@ -616,7 +649,7 @@ async def _download(app, files) -> None:
 
         await app.svc.download(f, dest, progress)
     app.media.update(progress=None, selecting=False, selected=set())
-    app.toast(f"Saved {len(files)} file(s) to {dest}")
+    app.toast(trn("Saved {n} file to {dest}", "Saved {n} files to {dest}", len(files), dest=dest))
     app.release_wifi_soon()
 
 
@@ -627,18 +660,19 @@ def _confirm_delete(app, files) -> None:
         for f in files:
             await app.svc.delete(f)
         app.media.update(selected=set(), selecting=False, detail=None, files=[], loaded=False)
-        app.toast(f"Deleted {len(files)} file(s) from the camera")
+        app.toast(trn("Deleted {n} file from the camera", "Deleted {n} files from the camera", len(files)))
 
     def yes(e):
         app.close_all_dialogs()
         app.run(delete)
 
-    what = files[0].name if len(files) == 1 else f"{len(files)} files"
     app.dialog(
-        f"Delete {what} from the camera?",
-        ft.Text("This can't be undone. Download first if you want to keep them.", color=t.text2),
+        tr("Delete {name} from the camera?", name=files[0].name)
+        if len(files) == 1
+        else trn("Delete {n} file from the camera?", "Delete {n} files from the camera?", len(files)),
+        ft.Text(tr("This can't be undone. Download first if you want to keep them."), color=t.text2),
         [
-            ft.TextButton("Cancel", on_click=lambda e: app.close_dialog()),
-            ft.TextButton("Delete", on_click=yes, style=ft.ButtonStyle(color=t.danger_text)),
+            ft.TextButton(tr("Cancel"), on_click=lambda e: app.close_dialog()),
+            ft.TextButton(tr("Delete"), on_click=yes, style=ft.ButtonStyle(color=t.danger_text)),
         ],
     )

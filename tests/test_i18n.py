@@ -36,6 +36,23 @@ NOT_TRANSLATED = {
     "FFmpeg",
     "HTTP",
     "SSID",
+    "LGPL-3.0",
+    "LGPL-2.1",
+    "GPL-3.0",
+    "Inter",
+    "Space Grotesk",
+    "JetBrains Mono",
+    "THIRD_PARTY_NOTICES.md",
+    "python -m quak.e2e",
+    "Videos",  # the folder in the home directory, whose name the system chooses
+    "LC_ALL",
+    "LC_MESSAGES",
+    "LANG",
+    "SIM",  # internal: the simulated camera's address
+    "IDLE",  # the camera's state names, which are compared rather than shown
+    "CONFIG",
+    "READY",
+    "STREAMING",
 }
 # Keyword arguments and calls whose strings are never shown to a person
 NOT_ON_SCREEN_KEYWORDS = {
@@ -51,6 +68,7 @@ NOT_ON_SCREEN_KEYWORDS = {
 }
 NOT_ON_SCREEN_CALLS = {
     "print",
+    "exit",
     "add_argument",
     "ArgumentParser",
     "getattr",
@@ -175,6 +193,34 @@ class NoTextLeftOut(unittest.TestCase):
         paths = [p for p in paths if p.name != "tour.py"]
         found = untranslated_text(paths)
         self.assertEqual(found, [], f"{len(found)} strings aren't translated")
+
+
+class TranslatedWhenShown(unittest.TestCase):
+    def test_nothing_is_translated_while_a_module_loads(self):
+        """That would freeze one language in place for good. Constants use N_ and get translated with term()."""
+        found = []
+        for path in sync.source_files():
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            parents = {child: parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)}
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call) or sync._called(node) not in ("tr", "trn", "term"):
+                    continue
+                parent, inside_a_function = parents.get(node), False
+                while parent is not None:
+                    if isinstance(parent, ast.Lambda) or (
+                        isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and not any(
+                            node is d or node in ast.walk(d)
+                            for d in parent.args.defaults + parent.args.kw_defaults
+                            if d
+                        )
+                    ):
+                        inside_a_function = True
+                        break
+                    parent = parents.get(parent)
+                if not inside_a_function:
+                    found.append(f"{path.relative_to(ROOT)}:{node.lineno}")
+        self.assertEqual(found, [])
 
 
 class Language(unittest.TestCase):

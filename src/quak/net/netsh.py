@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from xml.sax.saxutils import escape
 
 from quak.core.errors import NetworkError
+from quak.i18n import tr
 from quak.net.profiles import CAMERA_PROFILE
 
 
@@ -25,7 +26,9 @@ def run_command(args: list[str], timeout: float = 60) -> str:
     except (OSError, subprocess.TimeoutExpired) as e:
         raise NetworkError(f"{args[0]}: {e}") from None
     if p.returncode:
-        raise NetworkError(f"{' '.join(args[:4])} failed: {(p.stdout + p.stderr).strip()[:300]}")
+        raise NetworkError(
+            tr("{command} failed: {output}", command=" ".join(args[:4]), output=(p.stdout + p.stderr).strip()[:300])
+        )
     return p.stdout
 
 
@@ -104,16 +107,22 @@ class Netsh:
 
     def pick_device(self, need_ap: bool = False) -> WifiDevice:
         if need_ap:
-            raise NetworkError("the lab hotspot isn't supported on Windows")
+            raise NetworkError(tr("the lab hotspot isn't supported on Windows"))
         devices = self.wifi_devices()
         if not devices:
-            raise NetworkError("no Wi-Fi adapter found")
+            raise NetworkError(tr("no Wi-Fi adapter found"))
         wanted = os.environ.get("QUAK_WIFI_ADAPTER")
         if wanted:
             for d in devices:
                 if d.name == wanted:
                     return d
-            raise NetworkError(f"Wi-Fi adapter {wanted} not found (found: {', '.join(d.name for d in devices)})")
+            raise NetworkError(
+                tr(
+                    "Wi-Fi adapter {adapter} not found (found: {found})",
+                    adapter=wanted,
+                    found=", ".join(d.name for d in devices),
+                )
+            )
         return next((d for d in devices if not d.state.startswith("connected")), devices[0])
 
     def join(self, device: str, ssid: str, password: str, name: str = CAMERA_PROFILE, timeout: int = 40) -> None:
@@ -128,7 +137,14 @@ class Netsh:
         end = time.monotonic() + timeout  # that only starts the connection: wait for the address
         while not self.ipv4(device):
             if time.monotonic() > end:
-                raise NetworkError(f"{device} didn't get an address from {ssid} within {timeout} s")
+                raise NetworkError(
+                    tr(
+                        "{device} didn't get an address from {ssid} within {seconds} s",
+                        device=device,
+                        ssid=ssid,
+                        seconds=timeout,
+                    )
+                )
             time.sleep(1)
 
     def down(self, name: str) -> None:
