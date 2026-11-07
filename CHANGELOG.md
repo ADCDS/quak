@@ -1,0 +1,16 @@
+# Changelog
+
+## 0.1.0
+
+The first public version. It's early, and has been tested on one HERO11 Black (firmware 2.20) and one Android phone.
+
+Install it with `pipx install 'quak-camera[gui]'`, or download an app below. The
+[install guide](https://github.com/ADCDS/quak/blob/main/docs/install.md) has the details for each system.
+
+- A command line and an app for Linux, Windows and Android, on one Python backend
+- Pairing, status, every HERO11 Black setting, presets, recording and HiLights
+- Scheduled capture, with clock sync and duration
+- Live preview, media browsing, download and delete over the camera's Wi-Fi
+- A simulated camera that speaks the real protocol, for trying Quak and testing it without a camera
+
+Experimental: livestream ([known issue](https://github.com/ADCDS/quak/blob/main/docs/troubleshooting.md#known-issues)) and Windows, which has never been run with a camera.

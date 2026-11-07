@@ -1,0 +1,42 @@
+name: Bug report
+description: Something doesn't work
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before you paste a log:** Quak's logs hide passwords, stream keys, network names and serials, but your camera's Bluetooth
+        address can still appear. Please remove it.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: camera
+    attributes:
+      label: Camera model and firmware
+      description: From `quak info`, or "simulated"
+      placeholder: HERO11 Black, 2.20
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Operating system or phone, and the Bluetooth and Wi-Fi adapters on a computer
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Quak version
+      description: From `quak --version`, or "packaged 0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Output of the command with `-v`, or Diagnostics > Export log in the app
+      render: text

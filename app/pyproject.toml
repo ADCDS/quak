@@ -1,0 +1,32 @@
+# Flet app project for packaged builds (APK, Windows, Linux). tools/build_app.sh copies the
+# quak package into app/src before running `flet build`, so the app runs the same backend as the CLI.
+[project]
+name = "quak"
+version = "0.1.0"
+description = "Open-source remote for GoPro HERO11 cameras"
+requires-python = ">=3.12"
+dependencies = ["flet==1.1.0", "flet-video==1.1.0", "quak-native"]
+
+[tool.flet]
+org = "io.github.adcds"
+product = "Quak"
+company = "Quak"
+copyright = "Copyright (c) 2026 Adriel Santos. MIT License."
+
+# behind the transparent duck in assets/icon.png: Android's adaptive icon and the splash screen
+icon_background = "#0B0D10"
+
+[tool.flet.splash]
+color = "#0B0D10"
+dark_color = "#0B0D10"
+
+[tool.flet.app]
+path = "src"
+
+# the phone's Bluetooth bridge (a Flet extension in this repo)
+[tool.flet.dev_packages]
+quak-native = "../extensions/quak_native"
+
+[tool.flet.android.manifest_application]
+# it holds which cameras are paired and the app's own downloads: no reason for it to leave the phone
+allowBackup = "false"

@@ -1,0 +1,10 @@
+Quak is an independent open-source project. It is not affiliated with, endorsed by, or
+sponsored by GoPro, Inc.
+
+GoPro, HERO and Quik are trademarks or registered trademarks of GoPro, Inc. They are used
+here only to identify the cameras and the app this software interoperates with.
+
+The camera protocol details used by Quak come from GoPro's public Open GoPro specification
+(https://gopro.github.io/OpenGoPro/) and from our own testing. Quak's settings tables are
+generated from GoPro's MIT-licensed Open GoPro Python SDK, whose notice is reproduced in
+THIRD_PARTY_NOTICES.md, along with the notices of the software the packaged apps contain.

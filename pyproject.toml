@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quak-camera"  # "quak" on PyPI is an unrelated project; the commands are still quak and quak-gui
+dynamic = ["version"]
+description = "Open-source remote for GoPro HERO11 cameras over BLE and Wi-Fi: a CLI and a cross-platform GUI on one backend"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"]
+authors = [{ name = "Adriel Santos" }]
+keywords = ["gopro", "hero11", "open-gopro", "ble", "camera", "remote", "flet"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Environment :: X11 Applications",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: Android",
+  "Programming Language :: Python :: 3",
+  "Topic :: Multimedia :: Video :: Capture",
+]
+requires-python = ">=3.11"
+dependencies = [
+  "bleak>=0.22,<2",
+  "dbus-fast>=2.0; sys_platform == 'linux'",
+]
+
+[project.optional-dependencies]
+gui = ["flet[all]==1.1.0", "flet-video==1.1.0"]
+# GUI end-to-end driver (Chrome DevTools protocol)
+e2e = ["websockets>=13"]
+# Test-only: GoPro's SDK, used to cross-check our protobuf bytes. Never imported at runtime.
+test = ["open_gopro==0.22.0; python_version < '3.14'"]
+dev = ["ruff"]
+
+[project.urls]
+Homepage = "https://github.com/ADCDS/quak"
+Issues = "https://github.com/ADCDS/quak/issues"
+Changelog = "https://github.com/ADCDS/quak/blob/main/CHANGELOG.md"
+
+[project.scripts]
+quak = "quak.cli.main:main"
+quak-gui = "quak.gui.app:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "quak.__version__" }
+
+[tool.setuptools.package-data]
+"quak.gui" = ["assets/*", "assets/fonts/*", "assets/licenses/*"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["app/src/quak", "app/build"]
+
+[tool.ruff.lint]
+select = ["E9", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["quak"]

@@ -1,0 +1,23 @@
+name: quak_native
+description: Quak Bluetooth LE and Wi-Fi bridge (universal_ble, wifi_iot) for Flet
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: ">=3.47.0"
+
+dependencies:
+  flet: ^1.1.0
+  # Material widgets come from material_ui, not package:flutter/material.dart.
+  material_ui: ^1.6.0
+  flutter:
+    sdk: flutter
+
+  universal_ble: ^3.1.0  # BSD-3-Clause
+  wifi_iot: ^0.4.0  # MIT
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0

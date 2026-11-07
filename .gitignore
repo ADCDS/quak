@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+
+# Captures and run records can hold link keys, passwords, serials and addresses.
+logs/
+*.btsnoop
+*.ledger.json
+results.jsonl
+
+# Flet / Flutter build output
+.flet/
+extensions/**/build/
+extensions/**/.dart_tool/
+
+# packaged app build inputs/outputs
+app/src/quak/
+app/src/assets/
+app/build/
+extensions/**/pubspec.lock
+extensions/**/.flutter-plugins*

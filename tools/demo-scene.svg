@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <!-- What the simulated camera shows in screenshots. Drawn, so that no real footage or place ends up in the repo. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#27476E"/><stop offset=".55" stop-color="#6C8FB0"/><stop offset="1" stop-color="#F2C48D"/>
+    </linearGradient>
+    <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C9A98A"/><stop offset="1" stop-color="#2C4A63"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#sky)"/>
+  <circle cx="930" cy="330" r="58" fill="#FFE2B0"/>
+  <path d="M0 430 L170 270 L300 370 L470 210 L640 380 L790 280 L960 400 L1120 300 L1280 410 V520 H0 Z" fill="#46617F"/>
+  <path d="M470 210 L412 266 L446 256 L474 282 L506 252 L532 264 Z" fill="#E9EEF3"/>
+  <path d="M170 270 L128 310 L158 302 L178 318 L204 298 Z" fill="#E9EEF3"/>
+  <path d="M0 470 L210 370 L420 460 L640 390 L860 470 L1090 380 L1280 460 V540 H0 Z" fill="#2F4A5E"/>
+  <rect y="520" width="1280" height="200" fill="url(#lake)"/>
+  <path d="M0 520 C210 505 420 535 640 520 C860 505 1070 535 1280 520 V560 C1000 545 760 575 500 556 C300 545 150 560 0 552 Z" fill="#1F3A2E"/>
+  <path d="M90 640 H360 M520 668 H860 M980 620 H1210" stroke="#FFE2B0" stroke-opacity=".35" stroke-width="5" stroke-linecap="round"/>
+</svg>
