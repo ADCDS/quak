@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import unicodedata
 import unittest
 from pathlib import Path
 
@@ -337,6 +338,29 @@ class TranslatedDocs(unittest.TestCase):
                 self.assertIn(
                     f"blob/main/{'README.md' if page == 'README.md' else 'docs/' + page}", text[:800], f"{code}/{page}"
                 )
+
+    def test_their_bold_renders(self):
+        """Markdown ignores ** after punctuation unless a space or more punctuation follows: common in Japanese and Chinese."""
+
+        def kind(char: str) -> str:
+            return "Z" if not char or char.isspace() else unicodedata.category(char)[0]
+
+        for code in sync.languages():
+            for page in self.PAGES:
+                text = re.sub(
+                    r"^```.*?^```|`[^`\n]*`",
+                    "x",
+                    self.translated(code, page).read_text(encoding="utf-8"),
+                    flags=re.M | re.S,
+                )
+                for m in re.finditer(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", text):
+                    before = text[m.start() - 1] if m.start() else ""
+                    after = text[m.end()] if m.end() < len(text) else ""
+                    inner = m.group(1)
+                    bad = (kind(inner[-1]) in "PS" and kind(after) not in "ZPS") or (
+                        kind(inner[0]) in "PS" and kind(before) not in "ZPS"
+                    )
+                    self.assertFalse(bad, f"{code}/{page}: {m.group(0)[:50]}")
 
     def test_their_links_lead_somewhere(self):
         for code in sync.languages():

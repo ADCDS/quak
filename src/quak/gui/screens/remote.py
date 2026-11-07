@@ -509,9 +509,9 @@ def _preset_name(app, preset_id: int) -> str:
     for g in app.svc.state.presets:
         for p in g["preset_array"]:
             if p["id"] == preset_id:
-                return p.get("custom_name") or term(
-                    tables.PRESET_TITLES.get(p.get("title_id"), tr("Preset {id}", id=f"{preset_id:#x}"))
-                )
+                title = tables.PRESET_TITLES.get(p.get("title_id"), tr("Preset {id}", id=f"{preset_id:#x}"))
+                # "Log" is a video format here, and in the catalogs it's the Diagnostics tab
+                return p.get("custom_name") or (title if title == "Log" else term(title))
     return tr("Preset {id}", id=f"{preset_id:#x}")
 
 
