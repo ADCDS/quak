@@ -14,10 +14,12 @@ import datetime as dt
 import getpass
 import json
 import os
+import shlex
 import shutil
 import signal
 import sys
 import time
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from quak import __version__, config, flows
@@ -25,13 +27,19 @@ from quak.camera import Camera
 from quak.connect import Target, open_camera
 from quak.core import proto, tables
 from quak.core import registry as R
-from quak.core.errors import NetworkError, NotFound, QuakError, Rejected
+from quak.core.errors import ArmFailed, LabError, NetworkError, NotFound, QuakError, Rejected, SshError, SshKeyError
 from quak.core.registry import Status
 from quak.guard import SettingsGuard
+from quak.lab.capabilities.audio import DEFAULT_PATH, MAX_SECONDS
+from quak.lab.devices import classify
+from quak.lab.service import LabService
+from quak.lab.toolkit import check_pack_source
 from quak.net import stream
 from quak.net.hotspot import lab_hotspot
 from quak.net.http import PREVIEW_PORT, CameraHttp
 from quak.net.wifi import camera_wifi, recover_network
+from quak.ssh import keys, profiles
+from quak.ssh.manager import SshManager, _password_option
 
 # ---------------------------------------------------------------- output
 
@@ -624,6 +632,58 @@ async def hotspot_command(a, out: Out) -> None:
 # ---------------------------------------------------------------- parser
 
 
+# Each `quak lab` action: its usage, and how many arguments each of its subcommands takes. Extras are refused:
+# `storage umount a b` must not quietly leave b mounted.
+_LAB_ACTIONS = {
+    "status": ("quak lab status", {"": (0,)}),
+    "host": ("quak lab host on|off|recover", {"on": (0,), "off": (0,), "recover": (0,)}),
+    "devices": ("quak lab devices", {"": (0,)}),
+    "toolkit": (
+        "quak lab toolkit list|install|load|unload|remove|install-pack PATH --signers PATH"
+        "|install-pack-url URL --sha256 SHA --signers PATH",
+        {
+            "list": (0,),
+            "install": (0,),
+            "load": (0,),
+            "unload": (0,),
+            "remove": (0,),
+            "install-pack": (1,),
+            "install-pack-url": (1,),
+        },
+    ),
+    "storage": (
+        "quak lab storage list [PATH]|mount DEVICE [MOUNTPOINT]|umount MOUNTPOINT|copy SRC DST|eject MOUNTPOINT",
+        {"list": (0, 1), "mount": (1, 2), "umount": (1,), "copy": (2,), "eject": (1,)},
+    ),
+    "audio": (
+        "quak lab audio list|record CARD --seconds N|merge CLIP WAV OUT [--offset S] [--mix]",
+        {"list": (0,), "record": (1,), "merge": (3,)},
+    ),
+    "network": (
+        "quak lab network list|configure NAME [--dhcp | --ip ADDRESS [--prefix N] [--gateway IP]] [--dns IP]...",
+        {"list": (0,), "configure": (1,)},
+    ),
+    "system": ("quak lab system [status|logs|processes]", {"": (0,), "status": (0,), "logs": (0,), "processes": (0,)}),
+}
+
+# What --yes confirms, for the actions that need it.
+_LAB_CONFIRM = {
+    ("host", "on"): "this switches the camera's USB-C port to host mode, which cuts off a computer connected to it",
+    ("host", "off"): "this unmounts Lab volumes, unloads the toolkit and puts the USB-C port back in device mode",
+    ("toolkit", "install"): "this writes the toolkit to the camera's SD card",
+    ("toolkit", "install-pack"): "this writes a driver pack from this computer to the camera's SD card",
+    ("toolkit", "install-pack-url"): "this downloads a driver pack and writes it to the camera's SD card",
+    ("toolkit", "remove"): "this unloads the toolkit and deletes it from the camera's SD card",
+    ("storage", "mount"): "this mounts a volume on the camera, read-only",
+    ("storage", "umount"): "this unmounts a volume on the camera",
+    ("storage", "copy"): "this writes a copy to the camera's SD card or a mounted volume",
+    ("storage", "eject"): "this unmounts a volume on the camera, so it can be unplugged",
+    ("audio", "record"): f"this records on the camera, replacing any capture already at {DEFAULT_PATH}",
+    ("audio", "merge"): "this runs ffmpeg and writes a new file on this computer",
+    ("network", "configure"): "this changes the interface's address on the camera, and can cut the link Quak is using",
+}
+
+
 def _add_global_options(p: argparse.ArgumentParser, after_command: bool = False) -> None:
     def default(value):  # after the command, an option that isn't given must not overwrite the one before it
         return {} if after_command else {"default": value}
@@ -744,6 +804,92 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--seconds", type=float, default=600)
     s = sub.add_parser("sim", help="simulated camera: show / reset / power-button / pairing-mode")
     s.add_argument("action", choices=["show", "reset", "power-button", "pairing-mode", "advance-to-schedule"])
+    s = sub.add_parser(
+        "ssh", help="authenticated SSH to the camera: status / arm / test / exec / open / host / profile / key"
+    )
+    s.add_argument("ssh_action", choices=["status", "arm", "test", "exec", "open", "host", "profile", "key"])
+    s.add_argument(
+        "args", nargs="*", help="host/profile/key subcommand and its key id or path, or the remote command after `--`"
+    )
+    s.add_argument("--host", help="reach the camera at this host/IP for this run (overrides the saved profile)")
+    s.add_argument("--transport", choices=["auto", "wifi", "usb", "host"], help="route for this run (overrides it)")
+    s.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm forgetting a host key or a saved profile, or deleting, rotating or revoking an SSH key",
+    )
+    s.add_argument("--label", default="", help="name for a generated or imported SSH key")
+    s.add_argument("--comment", default="", help="comment for a generated SSH key")
+    s.add_argument(
+        "--passphrase-stdin",
+        action="store_true",
+        help="read a generated or imported SSH key's passphrase from one line of stdin (default: no passphrase)",
+    )
+    s.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="test/exec on a profile with auth=password: read the login password from one line of stdin (never saved)",
+    )
+    s.add_argument(
+        "--blank-password",
+        action="store_true",
+        help="use an empty password (the camera's dropbear -B blank mode); never saved",
+    )
+    s.add_argument("--auth", choices=profiles.AUTHS, help="profile set: log in with a key, a password or neither")
+    s.add_argument("--user", metavar="USER", help="profile set: the login user")
+    s = sub.add_parser(
+        "lab", help="Camera Lab over SSH: status / host / devices / toolkit / storage / audio / network / system"
+    )
+    s.add_argument("lab_action", choices=list(_LAB_ACTIONS))
+    s.add_argument(
+        "args",
+        nargs="*",
+        help="; ".join(usage.removeprefix("quak lab ") for usage, _ in _LAB_ACTIONS.values()),
+    )
+    s.add_argument("--host", help="reach the camera at this host/IP for this run (overrides the saved profile)")
+    s.add_argument("--transport", choices=["auto", "wifi", "usb", "host"], help="route for this run (overrides it)")
+    s.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="on a profile with auth=password: read the login password from one line of stdin (never saved)",
+    )
+    s.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm host on/off, toolkit install/install-pack/install-pack-url/remove, storage mount/umount/copy/eject, "
+        "audio record/merge, network configure",
+    )
+    s.add_argument(
+        "--signers",
+        metavar="PATH",
+        help="toolkit install-pack/install-pack-url: the allowed-signers file (ssh-keygen -Y verify) holding the keys "
+        "you trust",
+    )
+    s.add_argument(
+        "--sha256",
+        metavar="SHA",
+        help="toolkit install-pack-url: the SHA-256 the downloaded zip must have (64 hex digits)",
+    )
+    s.add_argument("--seconds", type=int, metavar="N", help=f"how long audio record captures (at most {MAX_SECONDS})")
+    s.add_argument(
+        "--offset",
+        type=float,
+        default=0.0,
+        metavar="S",
+        help="audio merge: start the WAV S seconds later against the clip, or earlier if negative",
+    )
+    s.add_argument("--mix", action="store_true", help="audio merge: keep the clip's own sound, mixed with the WAV")
+    s.add_argument("--dhcp", action="store_true", help="network configure: get an address by DHCP (the default)")
+    # Not --address: on every command that already picks the camera.
+    s.add_argument("--ip", metavar="ADDRESS", help="network configure: set this IPv4 address instead of using DHCP")
+    s.add_argument("--prefix", type=int, metavar="N", help="network configure: prefix length for --ip (default 24)")
+    s.add_argument("--gateway", metavar="IP", help="network configure: default route for --ip, inside its subnet")
+    s.add_argument(
+        "--dns",
+        action="append",
+        metavar="IP",
+        help="network configure: replace the camera's DNS servers with this one (repeat for more)",
+    )
     return p
 
 
@@ -795,6 +941,648 @@ def sim_command(a, out: Out) -> None:
         cam.clock_offset += (fire - now).total_seconds() - 3
     cam.save(path)
     out.result({"state": cam.to_json()}, json.dumps(cam.to_json(), indent=1, default=str))
+
+
+# ---------------------------------------------------------------- SSH (authenticated, over the system ssh)
+
+
+def _write_bytes(stream, data: bytes) -> None:
+    """Write remote output to a text stream, raw through its binary buffer when it has one."""
+    buffer = getattr(stream, "buffer", None)
+    if buffer is not None:
+        buffer.write(data)
+    else:
+        stream.write(data.decode("utf-8", errors="replace"))
+    stream.flush()
+
+
+def _ssh_address(a) -> str:
+    address = a.address or profiles.default_address()
+    if not address:
+        raise SshError("no camera: pass --address, or pair a camera so it becomes the default")
+    return address
+
+
+def _ssh_profile(manager: SshManager, address: str, a):
+    """The saved profile with this run's ``--host``/``--transport`` applied. The overrides are not saved."""
+    profile = manager.profile(address)
+    changes = {}
+    if getattr(a, "host", None):
+        changes["host"] = a.host
+    if getattr(a, "transport", None):
+        changes["transport"] = a.transport
+    return replace(profile, **changes) if changes else profile
+
+
+async def _ssh_host(a, out: Out, manager: SshManager, address: str, profile) -> int:
+    sub = a.args[0] if a.args else ""
+    if sub == "show":
+        status = await manager.status(address, profile=profile)
+        hk = status.host_key
+        out.result(
+            {"host_key": hk.fingerprint if hk else None, "key_type": hk.key_type if hk else None,
+             "host_key_state": status.host_key_state},
+            f"{hk.key_type} {hk.fingerprint} ({status.host_key_state})"
+            if hk
+            else f"no host key pinned ({status.host_key_state})",
+        )
+    elif sub == "trust":
+        hk = await manager.trust_host(address, profile=profile)
+        out.result({"trusted": True, "host_key": hk.fingerprint, "key_type": hk.key_type},
+                   f"trusted {hk.key_type} {hk.fingerprint} for {address}")
+    elif sub == "forget":
+        if not a.yes:
+            raise SshError("forgetting the pinned host key can't be undone; add --yes")
+        forgotten = await manager.forget_host(address, profile=profile)
+        out.result({"forgotten": forgotten}, "host key forgotten" if forgotten else "no host key was pinned")
+    else:
+        raise ValueError("usage: quak ssh host show|trust|forget")
+    return 0
+
+
+def _ssh_user(user: str) -> str:
+    """A login name that's safe to save: ssh gets it as USER@HOST, where a leading dash would read as an option."""
+    if not user or user.startswith("-") or any(char.isspace() for char in user):
+        raise ValueError(f"{user!r} can't be an SSH login name")
+    return user
+
+
+def _ssh_profile_cmd(a, out: Out, manager: SshManager) -> int:
+    usage = "usage: quak ssh profile show|forget|set --auth key|password|none [--user USER]"
+    address = _ssh_address(a)
+    sub = a.args[0] if a.args else ""
+    if sub == "show":
+        profile = _ssh_profile(manager, address, a)
+        fields = profiles.to_dict(profile)
+        out.result({"profile": fields}, "\n".join(f"{k}: {v}" for k, v in fields.items()))
+    elif sub == "set":
+        if a.auth is None or len(a.args) != 1:
+            raise ValueError(usage)
+        changes = {"auth": a.auth}
+        if a.user is not None:
+            changes["user"] = _ssh_user(a.user)
+        # From the saved profile, not _ssh_profile's: --host and --transport are for one run and aren't saved.
+        profile = replace(manager.profile(address), **changes)
+        profiles.save(profile)
+        out.result(
+            {"profile": profiles.to_dict(profile)},
+            f"profile for {address} saved: auth {profile.auth}, user {profile.user}",
+        )
+    elif sub == "forget":
+        if not a.yes:
+            raise SshError("forgetting the saved profile can't be undone; add --yes")
+        removed = profiles.delete(address)
+        out.result({"forgotten": removed},
+                   f"profile for {address} forgotten" if removed else f"no saved profile for {address}")
+    else:
+        raise ValueError(usage)
+    return 0
+
+
+# How many ids/paths each `quak ssh key` subcommand takes. Extras are refused: `delete a b` must not quietly skip b.
+_SSH_KEY_ARGS = {
+    "list": (0,),
+    "generate": (0,),
+    "import": (1,),
+    "show": (1,),
+    "delete": (1,),
+    "install": (0, 1),
+    "rotate": (2,),
+    "revoke": (1,),
+}
+
+
+def _ssh_key_row(key) -> dict:
+    return {"id": key.id, "label": key.label, "fingerprint": key.fingerprint, "encrypted": key.encrypted}
+
+
+def _ssh_key_line(key) -> str:
+    return f"{key.id}  {key.label}  {key.fingerprint}  {'encrypted' if key.encrypted else 'no passphrase'}"
+
+
+def _ssh_passphrase(a) -> str | None:
+    """One line of stdin with --passphrase-stdin, otherwise no passphrase."""
+    if not a.passphrase_stdin:
+        return None
+    passphrase = sys.stdin.readline().rstrip("\r\n")
+    if not passphrase:  # a pipeline that failed upstream must not leave a private key unprotected by surprise
+        raise SshKeyError("--passphrase-stdin got an empty line: send the passphrase, or leave the option off for none")
+    return passphrase
+
+
+def _ssh_password(a, profile) -> str | None:
+    """The login password for an auth=password profile, or None. Never shown or saved."""
+    if profile.auth != "password":
+        return None
+    if getattr(a, "blank_password", False):
+        if getattr(a, "password_stdin", False):
+            raise SshError("use --password-stdin or --blank-password, not both")
+        return ""
+    if not a.password_stdin:
+        return None
+    password = sys.stdin.readline().rstrip("\r\n")
+    if not password:  # a pipeline that failed upstream: don't spend a login attempt on it
+        raise SshError("--password-stdin got an empty line: send the password, or pass --blank-password")
+    return password
+
+
+def _ssh_confirm(a, what: str) -> None:
+    """--yes goes ahead. Without it, ask at a terminal; with nobody there to ask (or under --json), refuse."""
+    if a.yes:
+        return
+    if a.json or not sys.stdin.isatty():
+        raise SshError(f"{what}; add --yes")
+    print(f"{what}. Go ahead? [y/N]", end=" ", file=sys.stderr, flush=True)
+    if sys.stdin.readline().strip().lower() not in ("y", "yes"):
+        raise SshError("cancelled: the camera was not changed")
+
+
+async def _ssh_key_on_camera(a, out: Out, manager: SshManager, sub: str, ids: list[str]) -> None:
+    address = _ssh_address(a)
+    if sub == "rotate":
+        _ssh_confirm(a, f"this replaces {ids[0]} with {ids[1]} on the camera {address}")
+    elif sub == "revoke":
+        _ssh_confirm(a, f"this removes {ids[0]} from the camera {address}")
+    profile = _ssh_profile(manager, address, a)
+    if sub == "install":
+        result = await manager.install_key(address, ids[0] if ids else None, profile=profile)
+    elif sub == "rotate":
+        result = await manager.rotate_key(address, ids[0], ids[1], profile=profile)
+    else:
+        result = await manager.revoke_key(address, ids[0], profile=profile)
+    out.result(asdict(result), result.message)
+
+
+async def _ssh_key(a, out: Out, manager: SshManager) -> int:
+    sub, *rest = a.args or [""]
+    if len(rest) not in _SSH_KEY_ARGS.get(sub, ()):
+        raise ValueError(
+            "usage: quak ssh key list|generate|import PATH|show ID|delete ID|install [ID]|rotate OLD NEW|revoke ID"
+        )
+    if sub == "list":
+        stored = keys.list_keys()
+        out.result(
+            {"keys": [_ssh_key_row(key) for key in stored]},
+            "\n".join(_ssh_key_line(key) for key in stored)
+            or "no SSH keys yet. Run `quak ssh key generate` or `quak ssh key import`",
+        )
+    elif sub == "generate":
+        key = keys.generate(a.label, comment=a.comment, passphrase=_ssh_passphrase(a))
+        out.result(_ssh_key_row(key), f"generated {_ssh_key_line(key)}")
+    elif sub == "import":
+        key = keys.import_key(Path(rest[0]), a.label, passphrase=_ssh_passphrase(a))
+        out.result(_ssh_key_row(key), f"imported {_ssh_key_line(key)}")
+    elif sub == "show":
+        key = keys.get_key(rest[0])
+        if key is None:
+            raise SshKeyError(
+                f"SSH key {rest[0]} is not in Quak's key store. Run `quak ssh key list` to see what is there"
+            )
+        out.result({**_ssh_key_row(key), "public_key": key.public_key}, f"{key.public_key}\n{key.fingerprint}")
+    elif sub == "delete":
+        if not a.yes:
+            raise SshError(f"deleting the private key of {rest[0]} can't be undone; add --yes")
+        removed = keys.delete_key(rest[0])
+        out.result(
+            {"deleted": removed},
+            f"SSH key {rest[0]} deleted" if removed else f"no SSH key {rest[0]} in Quak's key store",
+        )
+    else:
+        await _ssh_key_on_camera(a, out, manager, sub, rest)
+    return 0
+
+
+async def ssh_command(a, out: Out) -> int:
+    """`quak ssh ...`: authenticated SSH to the camera, routed and host-key-checked by SshManager."""
+    manager = SshManager()
+    action = a.ssh_action
+    if action == "profile":
+        return _ssh_profile_cmd(a, out, manager)
+    if action == "key":  # the key store is local: only install/rotate/revoke need a camera
+        return await _ssh_key(a, out, manager)
+    address = _ssh_address(a)
+    profile = _ssh_profile(manager, address, a)
+    if action == "status":
+        status = await manager.status(address, profile=profile)
+        ep = status.endpoint
+        hk = status.host_key
+        out.result(
+            {
+                "address": address,
+                "transport": profile.transport,
+                "endpoint": f"{ep.host}:{ep.ssh_port}" if ep else None,
+                "reachable": status.reachable,
+                "ssh_up": status.ssh_up,
+                "banner": status.banner,
+                "host_key": hk.fingerprint if hk else None,
+                "host_key_state": status.host_key_state,
+                "last_error": status.last_error,
+            },
+            "\n".join(
+                filter(
+                    None,
+                    [
+                        f"endpoint {ep.host}:{ep.ssh_port} ({ep.transport})" if ep else "endpoint: unresolved",
+                        f"SSH {'up' if status.ssh_up else 'down'}" + (f" · {status.banner}" if status.banner else ""),
+                        f"host key {status.host_key_state}" + (f" · {hk.fingerprint}" if hk else ""),
+                        f"note: {status.last_error}" if status.last_error else "",
+                    ],
+                )
+            ),
+        )
+        return 0
+    if action == "arm":
+        result = await manager.arm(address, profile=profile)
+        out.result(
+            {
+                "http_status": result.http_status,
+                "accepted": result.accepted,
+                "ssh_up": result.ssh_up,
+                "banner": result.banner,
+                "message": result.message,
+            },
+            f"HTTP {result.http_status} · {'accepted' if result.accepted else 'refused'} · "
+            f"SSH {'up' if result.ssh_up else 'down'}" + (f" · {result.banner}" if result.banner else "")
+            + (f"\n{result.message}" if result.message else ""),
+        )
+        if not result.accepted:
+            raise ArmFailed(result.message or "the camera did not accept the arm request")
+        return 0
+    if action == "test":
+        result = await manager.test(address, profile=profile, password=_ssh_password(a, profile))
+        out.result(
+            {"ok": result.ok, "uid": result.uid, "uname": result.uname, "banner": result.banner, "error": result.error},
+            "\n".join(filter(None, [result.banner, result.uid, result.uname])) if result.ok else "",
+        )
+        if not result.ok:
+            raise SshError(result.error or "SSH login failed")
+        return 0
+    if action == "exec":
+        command = shlex.join(a.args)
+        if not command.strip():
+            raise SshError("no remote command given: pass it after `--`, e.g. quak ssh exec -- uname -a")
+        result = await manager.exec(address, command, profile=profile, password=_ssh_password(a, profile))
+        code = result.exit_code if result.exit_code is not None else 0
+        out.result(
+            {
+                "command": command,
+                "exit_code": code,
+                "stdout": result.text,
+                "stderr": result.stderr.decode("utf-8", errors="replace"),
+            }
+        )
+        if not out.as_json:
+            _write_bytes(sys.stdout, result.stdout)
+            if result.stderr:
+                _write_bytes(sys.stderr, result.stderr)
+        return code
+    if action == "open":
+        code = await manager.open_terminal(address, profile=profile)
+        out.result({"address": address, "exit_code": code})
+        return code
+    if action == "host":
+        return await _ssh_host(a, out, manager, address, profile)
+    raise ValueError(f"unknown ssh action {action!r}")
+
+
+# ---------------------------------------------------------------- Camera Lab (over authenticated SSH)
+
+
+def _lab_size(size: int) -> str:
+    for unit, scale in (("GB", 1e9), ("MB", 1e6), ("KB", 1e3)):
+        if size >= scale:
+            return f"{size / scale:.1f} {unit}"
+    return f"{size} B"
+
+
+def _lab_port_text(state) -> str:
+    if state.error:
+        return f"host mode: {state.error}"
+    unfinished = state.marker == "switching" or (state.marker and state.partial)
+    return " · ".join(
+        filter(
+            None,
+            [
+                f"host mode: {'on' if state.enabled else 'between modes' if state.partial else 'off'}",
+                f"root hubs {', '.join(state.devices)}" if state.devices else "",
+                f"gadget on {state.udc}" if state.udc else "",
+                f"paused {', '.join(state.paused)}" if state.paused else "",
+                "a switch did not finish: run `quak lab host recover`" if unfinished else "",
+            ],
+        )
+    )
+
+
+def _lab_pack_text(pack) -> str:
+    """What the card says. It leaves out whether the modules are loaded: reading the card doesn't ask the kernel."""
+    if pack.error:
+        return f"toolkit: {pack.error}"
+    return f"toolkit: installed at {pack.path}" if pack.installed else "toolkit: not installed"
+
+
+def _lab_device_row(device) -> dict:
+    return {**asdict(device), "kind": classify(device)}
+
+
+def _lab_device_line(device) -> str:
+    drivers = sorted({interface.driver for interface in device.interfaces if interface.driver})
+    return " · ".join(
+        filter(
+            None,
+            [
+                f"{device.id}  {device.vid or '----'}:{device.pid or '----'}  {classify(device)}",
+                " ".join(filter(None, [device.manufacturer, device.product])),
+                f"{device.speed} Mb/s" if device.speed else "",
+                ", ".join(drivers) or device.driver,
+            ],
+        )
+    )
+
+
+def _lab_volume_line(volume) -> str:
+    mode = "read-only" if volume.read_only else "read-write"
+    return "  ".join(
+        filter(
+            None,
+            [
+                volume.device,
+                volume.fs or "unknown filesystem",
+                f'"{volume.label}"' if volume.label else "",
+                _lab_size(volume.size),
+                f"mounted at {volume.mountpoint} ({mode})" if volume.mounted else "not mounted",
+            ],
+        )
+    )
+
+
+def _lab_system_text(status: dict) -> str:
+    mem, df = status["mem"], status["df"]
+    memory = ", ".join(f"{name} {_lab_size(mem[name])}" for name in ("total", "available", "free") if name in mem)
+    lines = [
+        f"up {dt.timedelta(seconds=int(status['uptime']))}" if status["uptime"] is not None else "",
+        "load " + " ".join(f"{value:g}" for value in status["load"]) if status["load"] else "",
+        f"memory: {memory}" if memory else "",
+        f"SD card: {_lab_size(df['free'])} free of {_lab_size(df['total'])} ({df['percent']}% used)" if df else "",
+        *(f"{zone['type'] or zone['zone']}: {zone['celsius']:.1f} °C" for zone in status["temp"]),
+    ]
+    return "\n".join(filter(None, lines)) or "the camera reported nothing"
+
+
+async def _lab_status(lab: LabService, out: Out) -> None:
+    status = await lab.status()
+    data = asdict(status) | {"devices": [_lab_device_row(device) for device in status.devices]}
+    if data["toolkit"]:
+        data["toolkit"]["loaded"] = None  # read from the card, which can't say: null rather than a false "not loaded"
+    lines = [
+        _lab_port_text(status.host_mode) if status.host_mode else "",
+        _lab_pack_text(status.toolkit) if status.toolkit else "",
+        f"battery: {status.battery}" if status.battery else "",
+        "USB devices:" if status.devices else "" if status.error else "no USB devices",
+        *(f"  {_lab_device_line(device)}" for device in status.devices),
+        f"note: {status.error}" if status.error else "",
+    ]
+    out.result(data, "\n".join(filter(None, lines)))
+
+
+async def _lab_host(lab: LabService, out: Out, sub: str) -> None:
+    switch = {"on": lab.host_on, "off": lab.host_off, "recover": lab.host_recover}[sub]
+    result = await switch()
+    out.result(asdict(result), f"{result.message}\n{_lab_port_text(result.state)}")
+
+
+async def _lab_toolkit(
+    lab: LabService, out: Out, sub: str, rest: list[str], signers: str | None, sha256: str | None
+) -> None:
+    action, done = {
+        "list": (lab.toolkit_status, ""),
+        "install": (lab.toolkit_install, "toolkit installed; no modules were loaded"),
+        "install-pack": (
+            lambda: lab.toolkit_install_pack(rest[0], signers),
+            "pack signature verified and pack installed; no modules were loaded",
+        ),
+        "install-pack-url": (
+            lambda: lab.toolkit_install_pack_url(rest[0], sha256, signers),
+            "pack downloaded, its signature verified and pack installed; no modules were loaded",
+        ),
+        "load": (lab.toolkit_load, "toolkit modules loaded"),
+        "unload": (lab.toolkit_unload, "toolkit modules unloaded"),
+        "remove": (lab.toolkit_remove, "toolkit removed"),
+    }[sub]
+    pack = await action()
+    data = asdict(pack)
+    # These go by the card, which can't say: null rather than a false "not loaded".
+    if sub in ("list", "install", "install-pack", "install-pack-url"):
+        data["loaded"] = None
+    out.result({"toolkit": data}, "\n".join(filter(None, [done, _lab_pack_text(pack)])))
+
+
+async def _lab_storage(lab: LabService, out: Out, sub: str, rest: list[str]) -> None:
+    if sub == "list" and rest:
+        entries = await lab.storage_list_dir(rest[0])
+        out.result(
+            {"path": rest[0], "entries": [entry._asdict() for entry in entries]},
+            "\n".join(
+                f"{entry.type:<5} {_lab_size(entry.size) if entry.type == 'file' else '':>9}  {entry.name}"
+                for entry in entries
+            )
+            or f"{rest[0]} is empty",
+        )
+    elif sub == "list":
+        volumes = await lab.storage_list()
+        out.result(
+            {"volumes": [asdict(volume) for volume in volumes]},
+            "\n".join(_lab_volume_line(volume) for volume in volumes) or "no volumes found",
+        )
+    elif sub == "mount":
+        volume = await lab.storage_mount(*rest)
+        out.result(  # no label or size: only `storage list` knows those
+            {"device": volume.device, "fs": volume.fs, "mountpoint": volume.mountpoint, "read_only": volume.read_only},
+            f"mounted {volume.device} at {volume.mountpoint} ({'read-only' if volume.read_only else 'read-write'})",
+        )
+    elif sub == "umount":
+        await lab.storage_unmount(rest[0])
+        out.result({"unmounted": rest[0]}, f"unmounted {rest[0]}")
+    elif sub == "copy":
+        out.log(f"copying {rest[0]} to {rest[1]}: a big file takes a while, with nothing to show until it's done")
+        result = await lab.storage_copy(*rest)
+        checked = f"sha256 {result.sha256} on both ends" if result.sha256 else "a folder's contents aren't verified"
+        out.result(asdict(result), f"copied to {result.target} ({checked})")
+    else:
+        await lab.storage_eject(rest[0])
+        out.result({"ejected": rest[0]}, f"ejected {rest[0]}")
+
+
+def _lab_audio_line(device) -> str:
+    if not device.capture_format:
+        return f"card {device.card}  {device.name}  can't capture"
+    rates = ", ".join(str(rate) for rate in device.rates)
+    return "  ".join(
+        filter(
+            None,
+            [
+                f"card {device.card}",
+                device.name,
+                device.capture_format,
+                f"{device.channels} ch" if device.channels else "",
+                f"{rates} Hz" if rates else "",
+            ],
+        )
+    )
+
+
+def _lab_record_args_ok(a, rest: list[str]) -> bool:
+    return rest[0].isdecimal() and a.seconds is not None and a.seconds >= 1
+
+
+async def _lab_audio(lab: LabService, out: Out, a, sub: str, rest: list[str]) -> None:
+    if sub == "list":
+        cards = await lab.audio_list()
+        out.result(
+            {"cards": [asdict(card) for card in cards]},
+            "\n".join(_lab_audio_line(card) for card in cards)
+            or "no sound cards: they need host mode on and the toolkit loaded (`quak lab toolkit load`)",
+        )
+        return
+    seconds = min(a.seconds, MAX_SECONDS)
+    limit = " (the most one capture can hold)" if a.seconds > MAX_SECONDS else ""
+    out.log(f"recording {seconds} s{limit} from sound card {rest[0]}")
+    result = await lab.audio_record(int(rest[0]), a.seconds)
+    out.result(
+        {**result._asdict(), "seconds": seconds},
+        f"recorded {result.path} on the camera ({_lab_size(result.size)}). It is in RAM: a power cycle loses it",
+    )
+
+
+async def _lab_audio_merge(lab: LabService, out: Out, a, rest: list[str]) -> None:
+    out.log(f"merging {rest[1]} with {rest[0]}")
+    merged = await lab.audio_merge(*rest, offset_seconds=a.offset, mix=a.mix)
+    sound = "the WAV mixed with the clip's sound" if a.mix else "the WAV in place of the clip's sound"
+    shift = f", offset {a.offset:+g} s" if a.offset else ""
+    out.result({"merged": str(merged), "offset_seconds": a.offset, "mix": a.mix}, f"wrote {merged} ({sound}{shift})")
+
+
+def _lab_network_args_ok(a, sub: str) -> bool:
+    """``--dhcp`` excludes ``--ip``, and what only means something with ``--ip`` isn't dropped without it."""
+    by_hand = a.ip is not None  # not truthiness: an empty --ip "$UNSET" must not turn into DHCP
+    needs_ip = a.prefix is not None or a.gateway is not None
+    if sub == "list":
+        return not (a.dhcp or by_hand or needs_ip or a.dns is not None)
+    return not (a.dhcp and by_hand) and (by_hand or not needs_ip)
+
+
+def _lab_interface_line(interface) -> str:
+    return "  ".join(
+        filter(
+            None,
+            [
+                interface.name,
+                interface.kind,
+                "up" if interface.up else "down",
+                interface.mac,
+                ", ".join(interface.addresses) or "no address",
+                interface.driver,
+            ],
+        )
+    )
+
+
+async def _lab_network(lab: LabService, out: Out, a, sub: str, rest: list[str]) -> None:
+    if sub == "list":
+        found = await lab.network_list()
+        out.result(
+            {"interfaces": [asdict(interface) for interface in found]},
+            "\n".join(_lab_interface_line(interface) for interface in found) or "no network interfaces found",
+        )
+        return
+    given = {"address": a.ip, "prefix": a.prefix, "gateway": a.gateway, "dns": a.dns}
+    settings = {name: value for name, value in given.items() if value is not None}
+    try:
+        result = await lab.network_configure(rest[0], dhcp=a.ip is None, **settings)
+    except NetworkError as e:
+        e.args = (
+            f"{e}. If that link runs over {rest[0]}, the change may have gone through anyway: "
+            "reconnect and check with `quak lab network list`",
+        )
+        raise
+    lines = [
+        f"{result['interface']} set up {'by DHCP' if result['mode'] == 'dhcp' else 'by hand'}: "
+        f"{', '.join(result['addresses'])}. The address lasts until the camera restarts",
+        f"gateway {result['gateway']}" if result["gateway"] else "",
+        f"DNS {', '.join(result['dns'])}" if result["dns"] else "",
+    ]
+    out.result(result, "\n".join(filter(None, lines)))
+
+
+async def _lab_system(lab: LabService, out: Out, sub: str) -> None:
+    if sub == "logs":
+        logs = await lab.system_logs()
+        out.result({"logs": logs}, logs)
+    elif sub == "processes":
+        processes = await lab.system_processes()
+        out.result({"processes": processes}, processes)
+    else:
+        status = await lab.system_status()
+        out.result(status, _lab_system_text(status))
+
+
+async def lab_command(a, out: Out) -> None:
+    """`quak lab ...`: the Camera Lab over authenticated SSH. ``LabService`` holds a route for each action."""
+    if a.sim:  # nothing here is simulated, so --sim must not end up changing a real camera
+        raise ValueError("the Camera Lab is real hardware: it has no simulated camera")
+    action = a.lab_action
+    usage, subcommands = _LAB_ACTIONS[action]
+    sub, *rest = a.args or [""]
+    if len(rest) not in subcommands.get(sub, ()):
+        raise ValueError(f"usage: {usage}")
+    # --signers is for the two pack installs, which can't do without it: no signers file means no pack is trusted.
+    # --sha256 is for the one that downloads, which can't do without it either.
+    if bool(a.signers) != (action == "toolkit" and sub in ("install-pack", "install-pack-url")):
+        raise ValueError(f"usage: {usage}")
+    if bool(a.sha256) != ((action, sub) == ("toolkit", "install-pack-url")):
+        raise ValueError(f"usage: {usage}")
+    # A URL that isn't https:// or file://, or a hash that isn't one, is refused here: before --yes, and before
+    # any route to the camera is opened for a download that was never going to be allowed.
+    if (action, sub) == ("toolkit", "install-pack-url"):
+        check_pack_source(rest[0], a.sha256)
+    if (action, sub) == ("audio", "record") and not _lab_record_args_ok(a, rest):
+        raise ValueError(f"usage: {usage}")
+    if action == "network" and not _lab_network_args_ok(a, sub):
+        raise ValueError(f"usage: {usage}")
+    # A camera's address has no dots, so this is an IP in the wrong option. Taken for a camera, it would run DHCP.
+    if (action, sub) == ("network", "configure") and a.address and "." in a.address:
+        raise ValueError(
+            f"--address picks the camera, and {a.address} isn't one. Give the interface's address with --ip"
+        )
+    if (action, sub) in _LAB_CONFIRM and not a.yes:
+        raise LabError(f"{_LAB_CONFIRM[action, sub]}; add --yes")
+    manager = SshManager()
+    if (action, sub) == ("audio", "merge"):  # happens on this computer, so no camera has to be known
+        await _lab_audio_merge(LabService(manager, a.address or ""), out, a, rest)
+        return
+    address = _ssh_address(a)
+    profile = _ssh_profile(manager, address, a)
+    lab = LabService(manager, address, profile=profile, **_password_option(_ssh_password(a, profile)))
+    if action == "status":
+        await _lab_status(lab, out)
+    elif action == "host":
+        await _lab_host(lab, out, sub)
+    elif action == "devices":
+        found = await lab.devices()
+        out.result(
+            {"devices": [_lab_device_row(device) for device in found]},
+            "\n".join(_lab_device_line(device) for device in found)
+            or "no USB devices: the camera only has them in host mode (`quak lab host on --yes`)",
+        )
+    elif action == "toolkit":
+        await _lab_toolkit(lab, out, sub, rest, a.signers, a.sha256)
+    elif action == "storage":
+        await _lab_storage(lab, out, sub, rest)
+    elif action == "audio":
+        await _lab_audio(lab, out, a, sub, rest)
+    elif action == "network":
+        await _lab_network(lab, out, a, sub, rest)
+    else:
+        await _lab_system(lab, out, sub)
 
 
 async def run(a, out: Out) -> None:
@@ -849,12 +1637,17 @@ def main(argv: list[str] | None = None) -> None:
     signal.signal(signal.SIGTERM, _terminated)
     if a.wifi_adapter:
         os.environ["QUAK_WIFI_ADAPTER"] = a.wifi_adapter
-    if not a.sim:
+    if not a.sim and a.command not in ("ssh", "lab"):  # these hold no BLE/Wi-Fi of their own to clean up after
         recovered = recover_network()
         if recovered:
             out.log(f"put back what an interrupted Quak left on {', '.join(recovered)}")
+    ssh_exit = 0
     try:
-        if a.command == "sim":
+        if a.command == "ssh":
+            ssh_exit = asyncio.run(ssh_command(a, out))
+        elif a.command == "lab":
+            asyncio.run(lab_command(a, out))
+        elif a.command == "sim":
             sim_command(a, out)
         elif a.command == "hotspot":
             if a.sim:
@@ -885,3 +1678,5 @@ def main(argv: list[str] | None = None) -> None:
         out.finish() if a.json else print(f"error: {type(e).__name__}: {e} (-v shows details)", file=sys.stderr)
         sys.exit(1)
     out.finish()
+    if ssh_exit:  # quak ssh exec/open propagate the remote command's (or ssh's) exit code
+        sys.exit(ssh_exit)

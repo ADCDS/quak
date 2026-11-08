@@ -1,4 +1,4 @@
-"""More: this camera, the app's preferences, and Diagnostics."""
+"""More: this camera, the app's preferences, the Camera Lab, SSH and Diagnostics."""
 
 from __future__ import annotations
 
@@ -19,6 +19,8 @@ from quak.gui import kit
 from quak.gui import theme as th
 from quak.gui.screens.cameras import _confirm_sleep
 from quak.gui.screens.common import _camera_name, _fw, pick
+from quak.gui.screens.lab import lab
+from quak.gui.screens.ssh import ssh
 from quak.i18n import N_, term, tr
 
 LOG_KINDS = {
@@ -33,16 +35,21 @@ LOG_KINDS = {
 def more(app) -> ft.Control:
     t = app.t
     tabs = kit.segmented(
-        [("camera", tr("Camera")), ("diagnostics", tr("Diagnostics"))],
+        [("camera", tr("Camera")), ("lab", tr("Lab")), ("ssh", tr("SSH")), ("diagnostics", tr("Diagnostics"))],
         app.more_tab,
         lambda v: app.go("more", more_tab=v),
         t,
         height=40,
         key="more-tab",
     )
-    inner = _more_camera(app) if app.more_tab == "camera" else _diagnostics(app)
+    inner = {"camera": _more_camera, "lab": lab, "ssh": ssh, "diagnostics": _diagnostics}[app.more_tab](app)
     return ft.Container(
-        ft.Column([kit.page_title(tr("More"), t), tabs, ft.Container(inner, expand=True)], spacing=8, expand=True),
+        ft.Column(
+            [kit.page_title(tr("More"), t), tabs, inner],
+            spacing=8,
+            expand=True,
+            scroll=ft.ScrollMode.AUTO,
+        ),
         padding=ft.Padding.only(left=16, right=16, top=16, bottom=12),
         expand=True,
     )

@@ -2,11 +2,13 @@
 
 from quak.gui.screens.add_camera import add_camera
 from quak.gui.screens.cameras import cameras
+from quak.gui.screens.lab import lab
 from quak.gui.screens.live import live
 from quak.gui.screens.media import media
 from quak.gui.screens.more import more
 from quak.gui.screens.remote import remote
 from quak.gui.screens.schedule import schedule
 from quak.gui.screens.settings import settings
+from quak.gui.screens.ssh import ssh
 
-__all__ = ["cameras", "add_camera", "remote", "settings", "schedule", "media", "live", "more"]
+__all__ = ["cameras", "add_camera", "remote", "settings", "schedule", "media", "live", "more", "lab", "ssh"]

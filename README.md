@@ -42,6 +42,7 @@ Or download a ready-made app for Linux, Windows or Android from [Releases](https
 - **In your language:** the app follows your system's language, or you can choose in **More**: English, Português (Brasil),
   Español, Français, Deutsch, Русский, 简体中文 or 日本語. The command line stays in English.
 - **Livestream** to an RTMP server such as YouTube or Twitch. This is **experimental**: see [known issues](https://github.com/ADCDS/quak/blob/main/docs/troubleshooting.md#known-issues).
+- **Camera Lab** (advanced, Linux, experimental): on a HERO11 that already has its own SSH login, log in over SSH, switch the USB-C port to USB host mode, and inspect devices and storage. Quak installs nothing on the camera. See the [Camera Lab guide](https://github.com/ADCDS/quak/blob/main/docs/camera-lab.md).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/ADCDS/quak/main/docs/images/phone-cameras.png" width="230" alt="The Cameras screen, showing battery, card space and clock">
@@ -103,6 +104,7 @@ camera. Livestream worked end to end, then stopped working on the test camera fo
 - [Install guide](https://github.com/ADCDS/quak/blob/main/docs/install.md): Linux, Windows and Android, and building the packages
 - [Safety](https://github.com/ADCDS/quak/blob/main/docs/safety.md): what Quak changes and stores, what it can delete, and how to recover
 - [Troubleshooting](https://github.com/ADCDS/quak/blob/main/docs/troubleshooting.md): common problems and known issues
+- [Camera Lab](https://github.com/ADCDS/quak/blob/main/docs/camera-lab.md): advanced, Linux-only SSH access, USB host mode, the bundled toolkit, storage and system panels
 - [Architecture](https://github.com/ADCDS/quak/blob/main/docs/architecture.md): how the code is organised
 - [Testing](https://github.com/ADCDS/quak/blob/main/docs/testing.md): the test suites and hardware results
 - [Protocol notes](https://github.com/ADCDS/quak/blob/main/docs/protocol.md): what we learned about the camera, beyond the official docs

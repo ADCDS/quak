@@ -82,6 +82,13 @@ Quak tells you when arming changes these. Change Duration back in the camera's s
 **Camera Wi-Fi** is turned on when needed, and back off when Quak is done, if Quak was the one to turn it on. An app that's killed
 during preview can leave it on: run `quak ap off`, or turn it off on the camera.
 
+**The Camera Lab (`quak ssh` and `quak lab`) is advanced, Linux-only, and off unless you use it.** It works only on a camera that
+already has its own SSH login; Quak installs nothing on the camera, and the only thing it ever sends outside an authenticated SSH
+session is one documented request that arms an SSH service already on the card. Over SSH it can switch the USB-C port to host mode
+(a change that lives in the camera's RAM, which a reboot reverts), add or remove your own SSH keys on the camera, write a verified
+toolkit to the SD card, mount storage read-only, and copy files without ever overwriting one. It cannot format, repartition or wipe
+anything. Each change asks for `--yes`, and undoes itself where the hardware allows. See the [Camera Lab guide](camera-lab.md).
+
 ## What Quak can delete
 
 Only clips you choose. Deleting one always asks for confirmation in the app, and needs `--yes` on the command line. Deleted clips

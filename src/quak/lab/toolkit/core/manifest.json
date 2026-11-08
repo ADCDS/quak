@@ -1,0 +1,102 @@
+{
+  "id": "core",
+  "version": "1.0.0",
+  "kernel": "4.19.124",
+  "vermagic": "4.19.124 SMP preempt mod_unload modversions aarch64",
+  "config_sha256": null,
+  "modules": [
+    {
+      "name": "soundcore",
+      "deps": [],
+      "sha256": "b076234bd25f8239dce2b9634083f4dcefb172c37336b48ee992724833704659"
+    },
+    {
+      "name": "snd",
+      "deps": [
+        "soundcore"
+      ],
+      "sha256": "af7a2417a376273904a74d1b1142521548885b8b32097974710b6564a7fdb0f0"
+    },
+    {
+      "name": "snd-timer",
+      "deps": [
+        "snd"
+      ],
+      "sha256": "0ae2de3d6f70ca96e53d2def9efd6c4bb9c93116c44d6473d8945c95b26df0ec"
+    },
+    {
+      "name": "snd-pcm",
+      "deps": [
+        "snd",
+        "snd-timer"
+      ],
+      "sha256": "9aee43e0a8bd2d36b6c545147d630d295d258d4973ff05637d5fd60a83b764b5"
+    },
+    {
+      "name": "snd-hwdep",
+      "deps": [
+        "snd"
+      ],
+      "sha256": "851b27f7a2b7414ac6f7077e9dc8bd25c4e57c29c4f874d49594522dd9b446ce"
+    },
+    {
+      "name": "snd-rawmidi",
+      "deps": [
+        "snd"
+      ],
+      "sha256": "359622b42510cb1db3b635d080a02920f60c6a7ec6d8ddf90c24d6213b87765d"
+    },
+    {
+      "name": "snd-usbmidi-lib",
+      "deps": [
+        "snd-rawmidi",
+        "snd"
+      ],
+      "sha256": "a83de1add6f94546411183153c8e95cb3306204dec349952a808740f07497a66"
+    },
+    {
+      "name": "snd-usb-audio",
+      "deps": [
+        "snd-usbmidi-lib",
+        "snd-pcm",
+        "snd",
+        "snd-hwdep"
+      ],
+      "sha256": "11086816cd554e2fccb4bf49ffbfa46d3e5febc034d377b17f5fdc9b3dd63b04"
+    },
+    {
+      "name": "usb-storage",
+      "deps": [],
+      "sha256": "254ae027fb35008ad7c9ca5e6a3512604a2d47f3a455cbc52727d3a103933a51"
+    },
+    {
+      "name": "mii",
+      "deps": [],
+      "sha256": "bd1ff22b3dfa441a40dee0ad998b911005590d682a1f0e686c7a702827ce21bd"
+    },
+    {
+      "name": "r8152",
+      "deps": [
+        "mii"
+      ],
+      "sha256": "5e1ca58c4234c896564e43ed01714f67bdecbe85015292f90aad110044d981b2"
+    }
+  ],
+  "tools": [
+    {
+      "name": "tinycap",
+      "sha256": "eb772a12b2c27cdac40669fb70d745bc338064c6d78b1c2a019563d45d19e36f"
+    },
+    {
+      "name": "tinymix",
+      "sha256": "b6a36f89c051553a2e645b36c00bc473b5cc4c37a0e1497a2119b1638565fab7"
+    },
+    {
+      "name": "tinypcminfo",
+      "sha256": "c8a5c07403dc94073ff3cd45e82cab27adf581f5e5737ae6749770efbc0f5db6"
+    }
+  ],
+  "firmware": [],
+  "license": "GPL-2.0-only (kernel modules); tinyalsa tools under their own licence",
+  "source": "src/quak/lab/toolkit/core/SOURCE.txt"
+}

@@ -1,0 +1,9 @@
+Provenance
+==========
+Kernel modules: built from vanilla Linux 4.19.124 with the HERO11's /proc/config.gz,
+aarch64-linux-gnu-gcc, plus CONFIG_USB_STORAGE=m, CONFIG_SND_USB_AUDIO=m, CONFIG_USB_RTL8152=m.
+Vermagic: 4.19.124 SMP preempt mod_unload modversions aarch64
+Licence: GPL-2.0-only (Linux kernel modules). Source: https://cdn.kernel.org/pub/linux/kernel/v4.x/linux-4.19.124.tar.xz
+
+Tools tinycap, tinymix, tinypcminfo: tinyalsa 2.0.0, static aarch64.
+Source: https://github.com/tinyalsa/tinyalsa

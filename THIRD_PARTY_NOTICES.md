@@ -36,12 +36,34 @@ Inter, Space Grotesk and JetBrains Mono. Their licences are in `src/quak/gui/ass
 | media_kit_video | 2.0.1 | MIT | packaged apps |
 | universal_ble | 3.1.0 | BSD-3-Clause | Android |
 | wifi_iot | 0.4.0 | MIT | Android |
+| dartssh2 | 4.1.0 | MIT | packaged apps, the SSH client behind the Camera Lab |
+| xterm | 4.0.0 | MIT | packaged apps, the embedded terminal view |
+| cryptography | 2.9.0 | Apache-2.0 | packaged apps, used by dartssh2 |
+| pointycastle | 4.0.0 | MIT | packaged apps, pulled in by dartssh2 |
+| pinenacl | 0.6.0 | MIT | packaged apps, pulled in by dartssh2 |
+| asn1lib | 1.6.8 | BSD-2-Clause | packaged apps, pulled in by dartssh2 |
 | bleak | 1.x or 0.22 | MIT | CLI and desktop |
 | dbus-fast | 2.x | MIT | Linux |
 | certifi | | MPL-2.0 | through Flet |
 | typing_extensions | | PSF-2.0 | through Flet |
 
 Flutter apps also bundle the notices of every Dart package they use, in their `NOTICES` asset.
+
+## The Camera Lab's toolkit (kernel modules and tinyalsa tools)
+
+The `quak.lab` package bundles a small toolkit for the optional Camera Lab, in `src/quak/lab/toolkit/core/`.
+It ships in every package. Quak copies these files onto the camera's own SD card only when you run
+`quak lab toolkit install`, and loads the modules only when you run `quak lab toolkit load`; see
+`docs/camera-lab.md`.
+
+| Component | Version | Licence | Source |
+|---|---|---|---|
+| Linux kernel modules (`*.ko`: `snd*`, `usb-storage`, `r8152`, `mii`, `soundcore`) | built from 4.19.124 | GPL-2.0-only | <https://cdn.kernel.org/pub/linux/kernel/v4.x/linux-4.19.124.tar.xz> |
+| tinyalsa tools (`tinycap`, `tinymix`, `tinypcminfo`) | 2.0.0 | BSD-3-Clause | <https://github.com/tinyalsa/tinyalsa> |
+
+The kernel modules are the stock Linux 4.19.124 modules rebuilt for the camera's kernel, under
+GPL-2.0-only; no part of Quak is derived from them. How they were built, and where to get the exact
+matching source, is in `src/quak/lab/toolkit/core/SOURCE.txt`, which ships beside them.
 
 ## GoPro's Open GoPro SDK
 

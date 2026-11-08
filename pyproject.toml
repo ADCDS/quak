@@ -54,6 +54,9 @@ version = { attr = "quak.__version__" }
 [tool.setuptools.package-data]
 "quak.gui" = ["assets/*", "assets/fonts/*", "assets/licenses/*"]
 quak = ["locale/*.json"]
+# The Lab's bundled toolkit: kernel modules (.ko), tinyalsa tools and the manifest/source notes. These are
+# binary data files beside quak.lab, not a package (toolkit/ has no __init__.py), so they ship as package-data.
+"quak.lab" = ["toolkit/core/**/*"]
 
 [tool.ruff]
 line-length = 120

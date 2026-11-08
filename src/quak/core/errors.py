@@ -62,6 +62,48 @@ class Unsupported(QuakError):
     exit_code = 7
 
 
+class SshError(QuakError):
+    """An authenticated SSH operation against the camera failed."""
+
+    exit_code = 8
+
+
+class HostKeyError(SshError):
+    """The camera's SSH host key is unknown or has changed since it was pinned."""
+
+    exit_code = 9
+
+
+class SshKeyError(SshError):
+    """A problem with an SSH key: missing, unreadable, wrong type, or not accepted."""
+
+    exit_code = 10
+
+
+class ArmFailed(SshError):
+    """The camera did not bring its SSH service up after the arm request."""
+
+    exit_code = 11
+
+
+class LabError(QuakError):
+    """A Camera Lab operation failed."""
+
+    exit_code = 12
+
+
+class ToolkitError(LabError):
+    """The Lab's module toolkit could not be installed, verified, loaded or unloaded."""
+
+    exit_code = 13
+
+
+class HostModeError(LabError):
+    """Switching the camera's USB-C port between host and device mode failed."""
+
+    exit_code = 14
+
+
 BLUETOOTH_LOST = N_("Bluetooth stopped responding while connecting. Check that Bluetooth is on, then try again.")
 
 NOT_BONDED_HINT = N_(

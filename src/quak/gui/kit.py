@@ -75,6 +75,7 @@ def _button(
     text_size: int = 16,
     weight=ft.FontWeight.W_600,
     radius: int = th.R_BUTTON,
+    action=None,
 ) -> ft.Control:
     style = ft.ButtonStyle(
         bgcolor=bg,
@@ -96,6 +97,7 @@ def _button(
         expand=expand,
         key=key,
         disabled=disabled,
+        action=action,
     )
 
 

@@ -10,16 +10,20 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import os
+import shutil
 import sys
 import traceback
+from collections import deque
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import flet as ft
 
 from quak import config, i18n
 from quak.connect import Target
-from quak.core.errors import AdapterInUse, QuakError
+from quak.core.errors import AdapterInUse, LabError, QuakError, SshError
 from quak.core.registry import Status
 from quak.gui import kit
 from quak.gui import theme as th
@@ -35,13 +39,15 @@ TABS = [
     ("more", N_("More"), ft.Icons.MORE_HORIZ),
 ]
 SUBSCREEN_TAB = {"add_camera": "cameras", "schedule": "cameras", "settings": "remote"}
-# desktop rail, as in the design: Diagnostics has its own item; More (camera settings, about) sits at the bottom
+# desktop rail: Diagnostics, Lab and SSH have their own items; More (camera settings, about) sits at the bottom
 RAIL = [
     ("cameras", N_("Cameras"), ft.Icons.PHOTO_CAMERA_OUTLINED, {}),
     ("remote", N_("Remote"), ft.Icons.RADIO_BUTTON_CHECKED, {}),
     ("media", N_("Media"), ft.Icons.GRID_VIEW, {}),
     ("live", N_("Live"), ft.Icons.SENSORS, {}),
     ("more", N_("Diagnostics"), ft.Icons.TERMINAL, {"more_tab": "diagnostics"}),
+    ("more", N_("Lab"), ft.Icons.SCIENCE_OUTLINED, {"more_tab": "lab"}),
+    ("more", N_("SSH"), ft.Icons.VPN_KEY_OUTLINED, {"more_tab": "ssh"}),
 ]
 RAIL_BOTTOM = ("more", N_("More"), ft.Icons.MORE_HORIZ, {"more_tab": "camera"})
 PREVIEW_FAILED = N_("The camera didn't start its preview. Try again in a moment.")
@@ -78,6 +84,38 @@ class App:
         self.live: dict = {"task": None, "log": [], "networks": [], "scanning": False}
         self.diag: dict = {"filter": "all", "paused": False, "tab": "log", "e2e": None, "e2e_lines": []}
         self.add: dict = {"step": "instructions", "found": [], "error": "", "scanning": False, "seen": None}
+        self.ssh: dict = {
+            "status": None,
+            "address": None,  # the camera that status is about
+            "keys": None,  # None until they've been listed
+            "busy": False,
+            "error": "",
+            "log": deque(maxlen=200),
+            "terminal": None,  # the embedded terminal on screen: keeps busy set and, over Wi-Fi, holds it until it ends
+        }
+        self.lab: dict = {
+            "tab": "overview",
+            "address": None,  # the camera everything below is about
+            "status": None,  # each is None until it has been read
+            "devices": None,
+            "volumes": None,
+            "system": None,
+            "logs": None,
+            "audio": None,  # the sound cards
+            "audio_saved": None,  # where the last capture ended up: its path and size
+            "network": None,  # the network interfaces
+            "network_result": None,  # what the last change to one of them came to
+            "framebuffers": None,
+            "serial": None,  # the serial ports
+            "serial_port": None,  # the device of the one tapped, for the command to use it
+            "toolkit_loaded": None,  # whether the modules are in the kernel: only an action or a switch can tell
+            "toolkit_result": "",  # what the last toolkit action came to
+            "toolkit_error": "",  # why the last toolkit action failed
+            "busy": False,
+            "error": "",
+        }
+        self._ssh_manager = None
+        self._lab_services: dict = {}
         self._render_pending = False
         self._log_pending = False
         self._live_texts: list = []
@@ -191,8 +229,17 @@ class App:
         self.screen = screen
         for k, v in kw.items():
             setattr(self, k, v)
+        terminal = self.ssh["terminal"]
+        if terminal and not self.on_ssh_tab:  # off the page it hangs up without an event, so nothing else would end it
+            from quak.gui.screens.ssh import end_terminal
+
+            self.run(end_terminal, self, terminal)
         self.release_wifi_soon()
         self.render()
+
+    @property
+    def on_ssh_tab(self) -> bool:
+        return self.screen == "more" and self.more_tab == "ssh"
 
     def release_wifi_soon(self) -> None:
         """Hand the camera's Wi-Fi back a while after the last thing that needs it: it may be this computer's
@@ -202,12 +249,61 @@ class App:
 
         async def later():
             await asyncio.sleep(WIFI_IDLE_SECONDS)
-            if wait != self._wifi_wait or self.screen == "media" or self.preview["on"] or self.media.get("progress"):
+            if (
+                wait != self._wifi_wait
+                or self.screen == "media"
+                or self.preview["on"]
+                or self.media.get("progress")
+                or getattr(self, "ssh", {}).get("busy", False)  # an SSH action may be riding on this Wi-Fi
+                or getattr(self, "lab", {}).get("busy", False)  # and so may a Lab one
+            ):
                 return
             await self.svc.release_http()
 
         if self.svc.state.http:
             self.page.run_task(later)
+
+    @property
+    def ssh_manager(self):
+        """Made on first use, so opening the app doesn't load the SSH backend."""
+        if self._ssh_manager is None:
+            from quak.ssh.manager import SshManager
+
+            self._ssh_manager = SshManager(network_context=self._ssh_network, scan_async=_native_host_key_scan())
+        return self._ssh_manager
+
+    @property
+    def lab_service(self):
+        """The Lab on the camera in hand, made on first use. Each camera has its own, all on the one SSH manager."""
+        from quak.gui.screens.ssh import _address
+        from quak.lab.service import LabService
+
+        address = _address(self)
+        if address is None:
+            raise LabError(
+                tr("The Camera Lab needs a real camera: the simulated one in demo mode doesn't have it.")
+                if self.sim
+                else tr("Not connected.")
+            )
+        if address not in self._lab_services:
+            self._lab_services[address] = LabService(self.ssh_manager, address)
+        return self._lab_services[address]
+
+    @contextlib.asynccontextmanager
+    async def _ssh_network(self, _profile) -> AsyncIterator[None]:
+        """Hold the camera's Wi-Fi through the service, so that joining it waits its turn with Media and the preview."""
+        if self.sim:  # the service would answer with its simulated camera, which has no SSH to reach
+            raise SshError(tr("SSH needs a real camera: the simulated one in demo mode doesn't have it."))
+        svc = self.svc  # demo mode can swap it during the action, and this is the one to let go of the Wi-Fi
+        if svc.cam is None:
+            raise SshError(
+                tr("No camera is connected over Bluetooth, so Quak can't turn on its Wi-Fi. Connect it first.")
+            )
+        await svc.http()
+        try:
+            yield
+        finally:
+            await svc.release_http()
 
     def run(self, fn, *args, ok: str | None = None, redraw: bool = True) -> None:
         async def task():
@@ -260,9 +356,9 @@ class App:
             )
         )
 
-    def dialog(self, title: str, content: ft.Control, actions: list[ft.Control]) -> ft.AlertDialog:
+    def dialog(self, title: str, content: ft.Control, actions: list[ft.Control], **options) -> ft.AlertDialog:
         d = ft.AlertDialog(
-            title=ft.Text(title, color=self.t.text), content=content, actions=actions, bgcolor=self.t.surface
+            title=ft.Text(title, color=self.t.text), content=content, actions=actions, bgcolor=self.t.surface, **options
         )
         self.page.show_dialog(d)
         return d
@@ -357,18 +453,24 @@ class App:
             st.schedule["armed"],
         )
 
+    def _held_view(self) -> tuple | None:
+        """What's on screen, when that's something a rebuild would destroy; None when a rebuild is harmless."""
+        if self.preview.get("player") and self.screen == "remote":
+            return self._player_view()
+        if self.ssh["terminal"] and self.on_ssh_tab:  # the rest of the screen is waiting for it to end
+            return ("terminal", self.ssh["terminal"])
+        return None
+
     def render(self) -> None:
         from quak.gui import screens
 
         # A rebuild replaces the whole widget tree, which destroys a playing video (the phone's decoder never
-        # got to show a frame). While the player runs, only rebuild when something on screen really changed.
-        if self.preview.get("player") and self.screen == "remote":
-            view = self._player_view()
-            if view == self._rendered_view:
-                return
-            self._rendered_view = view
-        else:
-            self._rendered_view = None
+        # got to show a frame) and hangs up a terminal. While either runs, only rebuild when something on
+        # screen really changed.
+        view = self._held_view()
+        if view is not None and view == self._rendered_view:
+            return
+        self._rendered_view = view
         t = self.t
         self._live_texts = []
         self.diag["log_view"] = None  # the log screen sets it again
@@ -556,6 +658,34 @@ class App:
         d = Path(os.environ.get("QUAK_DOWNLOADS", default))
         d.mkdir(parents=True, exist_ok=True)
         return d
+
+
+def _native_host_key_scan():
+    """``SshManager``'s ``scan_async`` through the Dart SSH client, or None to leave the scan to ``hostkeys.scan``.
+
+    It's None wherever ssh-keyscan exists, as on a desktop: only that scan brings the known_hosts line the system
+    ssh checks against. It's also None in a build without the extension. That leaves the Dart scan to phones.
+
+    Call it where a page is current, as an action is: that's what registers the service with the page.
+    """
+    if shutil.which("ssh-keyscan"):
+        return None
+    try:
+        from quak_native import QuakSsh
+    except ImportError:
+        return None
+    from quak.ssh.models import HostKey
+
+    service = QuakSsh()  # the closure keeps it alive: Flet unregisters a service nothing else refers to
+
+    async def scan(host: str, port: int) -> HostKey:
+        try:
+            found = await service.scan_host_key(host, port)
+        except RuntimeError as exc:  # how Flet reports a failure on the Dart side; its timeout is already an OSError
+            raise ConnectionError(str(exc)) from None
+        return HostKey(host, port, found["key_type"], found["fingerprint"])
+
+    return scan
 
 
 def _system_language_tags() -> list[str]:
